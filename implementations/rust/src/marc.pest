@@ -1,0 +1,29 @@
+file                   =  { SOI ~ (entry | COMMENT)+ ~ EOI }
+alpha                  = _{ 'a'..'z' | 'A'..'Z' }
+digit                  = _{ '0'..'9' }
+identifier             =  { (alpha | digit | "-" | "_")+ }
+WHITESPACE             = _{ " " | "\t" | "\n" }
+COMMENT                =  { "#" ~ (!NEWLINE ~ ANY)* ~ NEWLINE* }
+entry                  =  { accesses ~ "=" ~ value ~ NEWLINE* }
+accesses               =  { (access)+ }
+access                 =  _{ (object_access | map_access | array_access_next | array_access_current ) }
+array_access_next      =  { "[" ~ "i" ~ "]" }
+array_access_current   =  { "[" ~ "]" }
+object_access          =  { "." ~ identifier }
+map_access             =  { "{" ~ identifier ~ "}" }
+value                  =  _{ null | boolean | integer | number | multiline_string | string }
+multiline_string       = _{ "\"\"\"" ~ multiline_string_inner ~ "\"\"\"" }
+multiline_string_inner = { ((!"\"\"\"") ~ ANY)* }
+string                 =  _{ "\"" ~ string_inner ~ "\"" }
+string_inner           =  { (!"\"" ~ ANY)* }
+boolean                =  { "true" | "false" }
+null                   =  { "null" }
+
+number = @{
+    "-"? ~ integer ~ fraction? ~ exponent?
+}
+
+integer  = { "0" | ASCII_NONZERO_DIGIT ~ ASCII_DIGIT* }
+fraction = _{ "." ~ ASCII_DIGIT+ }
+exponent = _{ ("e" | "E") ~ ("-" | "+")? ~ ASCII_DIGIT+ }
+
