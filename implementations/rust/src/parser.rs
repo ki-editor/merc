@@ -33,7 +33,6 @@ pub(crate) fn parse(input: &str) -> anyhow::Result<Parsed> {
                         tail: access_tail,
                     }
                 };
-                println!("\n\naccesses = {:?}", accesses);
                 let value = parse_value(inner_rules.next().unwrap());
                 Some(Statement::Entry(Entry { accesses, value }))
             }
@@ -45,35 +44,51 @@ pub(crate) fn parse(input: &str) -> anyhow::Result<Parsed> {
     Ok(Parsed(statements))
 }
 
-struct Parsed(Vec<Statement>);
-
-enum Statement {
-    Entry(Entry),
-    Comment(Comment),
-}
-
-struct Comment(String);
-
-struct Entry {
-    accesses: NonEmpty<Access>,
-    value: Value,
-}
-
-fn parse_value(pair: Pair<Rule>) -> Value {
-    println!("parse_value pair = {pair:?}");
-    match pair.as_rule() {
-        Rule::string_inner => Value::String(pair.as_str().to_string()),
-        Rule::multiline_string_inner => Value::MultilineString(pair.as_str().to_string()),
-        Rule::number => Value::Decimal(str::parse::<Decimal>(pair.as_str()).unwrap()),
-        Rule::integer => Value::Integer(str::parse::<isize>(pair.as_str()).unwrap()),
-        Rule::boolean => Value::Boolean(str::parse::<bool>(pair.as_str()).unwrap()),
-        Rule::null => Value::Null,
-        rule => unreachable!("rule = {rule:?}"),
+#[derive(Debug)]
+pub(crate) struct Parsed(Vec<Statement>);
+impl Parsed {
+    pub(crate) fn into_entries(self) -> Vec<Entry> {
+        self.0
+            .into_iter()
+            .filter_map(|statement| match statement {
+                Statement::Entry(entry) => Some(entry),
+                _ => None,
+            })
+            .collect_vec()
     }
 }
 
 #[derive(Debug)]
-enum Value {
+pub(crate) enum Statement {
+    Entry(Entry),
+    Comment(Comment),
+}
+
+#[derive(Debug)]
+struct Comment(String);
+
+#[derive(Debug)]
+pub(crate) struct Entry {
+    pub(crate) accesses: NonEmpty<Access>,
+    pub(crate) value: EntryValue,
+}
+
+fn parse_value(pair: Pair<Rule>) -> EntryValue {
+    let span = pair.as_span().clone().into();
+    let kind = match pair.as_rule() {
+        Rule::string_inner => ValueKind::String(pair.as_str().to_string()),
+        Rule::multiline_string_inner => ValueKind::MultilineString(pair.as_str().to_string()),
+        Rule::number => ValueKind::Decimal(str::parse::<Decimal>(pair.as_str()).unwrap()),
+        Rule::integer => ValueKind::Integer(str::parse::<isize>(pair.as_str()).unwrap()),
+        Rule::boolean => ValueKind::Boolean(str::parse::<bool>(pair.as_str()).unwrap()),
+        Rule::null => ValueKind::Null,
+        rule => unreachable!("rule = {rule:?}"),
+    };
+    EntryValue { span, kind }
+}
+
+#[derive(Debug)]
+pub(crate) enum ValueKind {
     String(String),
     MultilineString(String),
     Integer(isize),
@@ -82,30 +97,62 @@ enum Value {
     Null,
 }
 
-#[derive(Debug)]
-enum Access {
-    ObjectAccess { key: String },
-    MapAccess { key: String },
-    ArrayAccessNext,
-    ArrayAccessCurrent,
+#[derive(Debug, Clone)]
+pub(crate) struct Span {
+    input: String,
+    start: usize,
+    end: usize,
 }
 
+impl From<pest::Span<'_>> for Span {
+    fn from(value: pest::Span<'_>) -> Self {
+        Self {
+            input: value.as_str().to_string(),
+            start: value.start(),
+            end: value.end(),
+        }
+    }
+}
+
+#[derive(Debug)]
+pub(crate) struct EntryValue {
+    pub(crate) span: Span,
+    pub(crate) kind: ValueKind,
+}
+
+#[derive(Debug, Clone)]
+pub(crate) struct Access {
+    pub(crate) span: Span,
+    pub(crate) kind: AccessKind,
+}
+#[derive(Debug, Clone)]
+pub(crate) enum AccessKind {
+    ObjectAccess { key: String },
+    MapAccess { key: String },
+    ArrayAccessNew,
+    ArrayAccessLast,
+}
 fn parse_access(pair: Pair<Rule>) -> Access {
-    match pair.as_rule() {
-        Rule::array_access_next => Access::ArrayAccessNext,
-        Rule::array_access_current => Access::ArrayAccessCurrent,
-        Rule::object_access => Access::ObjectAccess {
+    let span: Span = pair.as_span().into();
+    println!("span = {span:?}");
+    let kind = match pair.as_rule() {
+        Rule::array_access_next => AccessKind::ArrayAccessNew,
+        Rule::array_access_current => AccessKind::ArrayAccessLast,
+        Rule::object_access => AccessKind::ObjectAccess {
             key: pair.into_inner().next().unwrap().as_str().to_string(),
         },
-        Rule::map_access => Access::MapAccess {
+        Rule::map_access => AccessKind::MapAccess {
             key: pair.into_inner().next().unwrap().as_str().to_string(),
         },
         rule => unreachable!("rule = {:?}", rule),
-    }
+    };
+    Access { kind, span }
 }
 
 #[cfg(test)]
 mod test_parser {
+    use crate::data::evaluate;
+
     use super::*;
     use pest::Parser;
     use pest_derive::Parser;
@@ -134,6 +181,8 @@ They are found on Earth.
 
 "#
         .trim();
-        parse(&input).unwrap();
+        let parsed = parse(&input).unwrap();
+        let value = evaluate(parsed).unwrap();
+        println!("value = {value:?}");
     }
 }
