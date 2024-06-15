@@ -1,14 +1,16 @@
 use itertools::Itertools;
 use nonempty::NonEmpty;
-use pest::{iterators::Pair, Parser};
+use pest::{error::Error, iterators::Pair, Parser};
 use pest_derive::Parser;
 use rust_decimal::Decimal;
+
+use crate::data;
 
 #[derive(Parser)]
 #[grammar = "marc.pest"]
 pub(crate) struct MarcParser;
 
-pub(crate) fn parse(input: &str) -> anyhow::Result<Parsed> {
+pub(crate) fn parse(input: &str) -> Result<Parsed, Error<Rule>> {
     let file = MarcParser::parse(Rule::file, input)?
         .into_iter()
         .next()
@@ -131,58 +133,35 @@ pub(crate) enum AccessKind {
     MapAccess { key: String },
     ArrayAccessNew,
     ArrayAccessLast,
+    TupleAccessLast,
+    TupleAccessNew,
 }
 fn parse_access(pair: Pair<Rule>) -> Access {
     let span: Span = pair.as_span().into();
-    println!("span = {span:?}");
     let kind = match pair.as_rule() {
-        Rule::array_access_next => AccessKind::ArrayAccessNew,
-        Rule::array_access_current => AccessKind::ArrayAccessLast,
+        Rule::array_access_new => AccessKind::ArrayAccessNew,
+        Rule::array_access_last => AccessKind::ArrayAccessLast,
+        Rule::tuple_access_new => AccessKind::TupleAccessNew,
+        Rule::tuple_access_last => AccessKind::TupleAccessLast,
         Rule::object_access => AccessKind::ObjectAccess {
-            key: pair.into_inner().next().unwrap().as_str().to_string(),
+            key: pair
+                .into_inner()
+                .next()
+                .unwrap()
+                .as_str()
+                .trim()
+                .to_string(),
         },
         Rule::map_access => AccessKind::MapAccess {
-            key: pair.into_inner().next().unwrap().as_str().to_string(),
+            key: pair
+                .into_inner()
+                .next()
+                .unwrap()
+                .as_str()
+                .trim()
+                .to_string(),
         },
         rule => unreachable!("rule = {:?}", rule),
     };
     Access { kind, span }
-}
-
-#[cfg(test)]
-mod test_parser {
-    use crate::data::evaluate;
-
-    use super::*;
-    use pest::Parser;
-    use pest_derive::Parser;
-
-    #[test]
-    fn map() {
-        let input = r#"
-# Map
-.materials{metal}.reflectivity = 1.0
-.materials{metal}.metallic = true
-.materials{plastic}.reflectivity = 0.5
-.materials{plastic}.conductivity = null
-
-# Array of objects
-.entities[i].name = "hero"
-.entities[ ].material = "metal"
-
-.entities[i].name = "monster"
-.entities[ ].material = "plastic"
-
-# Multiline string
-.description = """
-These are common materials.
-They are found on Earth.
-"""
-
-"#
-        .trim();
-        let parsed = parse(&input).unwrap();
-        let value = evaluate(parsed).unwrap();
-        println!("value = {value:?}");
-    }
 }

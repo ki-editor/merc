@@ -11,7 +11,6 @@ pub enum Value {
     String(String),
     Integer(isize),
     Decimal(Decimal),
-    Comment(String),
     Null,
     Boolean(bool),
     Uninitialized,
@@ -30,22 +29,31 @@ impl ArrayLike {
         }
     }
 
-    fn push_new(mut self, tail: &[Access], value: Value) -> Result<ArrayLike, Error> {
+    fn push_new(mut self, tail: &[Access], value: Value) -> Result<ArrayLike, EvaluationError> {
         let new_element = Value::Uninitialized.set(tail, value)?;
         self.array.push(new_element);
         Ok(self)
     }
 
-    fn set_last(mut self, tail: &[Access], value: Value) -> Result<ArrayLike, Error> {
+    fn set_last(mut self, tail: &[Access], value: Value) -> Result<ArrayLike, EvaluationError> {
         if let Some(last) = self.array.pop() {
             self.array.push(last.set(tail, value)?);
             Ok(self)
         } else {
-            Err(Error {
+            Err(EvaluationError {
                 span: todo!(),
                 kind: ErrorKind::LastArrayElementNotFound,
             })
         }
+    }
+
+    fn into_json(self) -> serde_json::Value {
+        serde_json::Value::Array(
+            self.array
+                .into_iter()
+                .map(|value| value.into_json())
+                .collect_vec(),
+        )
     }
 }
 #[derive(Debug, Clone)]
@@ -66,7 +74,7 @@ impl MapLike {
         }
     }
 
-    fn set(self, key: &str, tail: &[Access], value: Value) -> Result<Self, Error> {
+    fn set(self, key: &str, tail: &[Access], value: Value) -> Result<Self, EvaluationError> {
         let mut map = self.map;
         let map = if let Some(object_value) = map.shift_remove(key) {
             map.insert(key.to_string(), object_value.set(tail, value)?);
@@ -79,6 +87,15 @@ impl MapLike {
             kind: self.kind,
             map,
         })
+    }
+
+    fn into_json(self) -> serde_json::Value {
+        serde_json::Value::Object(
+            self.map
+                .into_iter()
+                .map(|(key, value)| (key, value.into_json()))
+                .collect(),
+        )
     }
 }
 
@@ -99,19 +116,14 @@ impl Value {
         })
     }
 
-    fn update(self, entry: crate::parser::Entry) -> Result<Value, Error> {
+    fn update(self, entry: crate::parser::Entry) -> Result<Value, EvaluationError> {
         self.set(
             &entry.accesses.into_iter().collect_vec(),
             evaluate_value(entry.value),
         )
     }
 
-    fn set(self, accesses: &[Access], value: Value) -> Result<Value, Error> {
-        println!(
-            "\naccess = {:?}",
-            accesses.iter().map(|a| a.kind.clone()).collect_vec()
-        );
-        println!("value = {value:?}");
+    fn set(self, accesses: &[Access], value: Value) -> Result<Value, EvaluationError> {
         let Some((head, tail)) = accesses.split_first() else {
             return Ok(value);
         };
@@ -128,10 +140,19 @@ impl Value {
             (Value::Uninitialized, AccessKind::ArrayAccessNew) => {
                 Value::ArrayLike(ArrayLike::new(ArrayKind::Array)).set(accesses, value)
             }
+            (Value::Uninitialized, AccessKind::TupleAccessNew) => {
+                Value::ArrayLike(ArrayLike::new(ArrayKind::Tuple)).set(accesses, value)
+            }
             (Value::ArrayLike(array), AccessKind::ArrayAccessNew) => {
                 Ok(Value::ArrayLike(array.push_new(tail, value)?))
             }
             (Value::ArrayLike(array), AccessKind::ArrayAccessLast) => {
+                Ok(Value::ArrayLike(array.set_last(tail, value)?))
+            }
+            (Value::ArrayLike(array), AccessKind::TupleAccessNew) => {
+                Ok(Value::ArrayLike(array.push_new(tail, value)?))
+            }
+            (Value::ArrayLike(array), AccessKind::TupleAccessLast) => {
                 Ok(Value::ArrayLike(array.set_last(tail, value)?))
             }
             (
@@ -151,7 +172,7 @@ impl Value {
                 ),
                 AccessKind::MapAccess { key },
             ) => Ok(Value::MapLike(object.set(key, tail, value)?)),
-            (expected_value, actual_access) => Err(Error {
+            (expected_value, actual_access) => Err(EvaluationError {
                 kind: ErrorKind::TypeMismatch {
                     expected_type: expected_value.typ(),
                     actual_type: actual_access.typ(),
@@ -181,10 +202,24 @@ impl Value {
             Value::String(_) => Type::String,
             Value::Integer(_) => Type::Integer,
             Value::Decimal(_) => Type::Decimal,
-            Value::Comment(_) => Type::Comment,
             Value::Null => Type::Null,
             Value::Boolean(_) => Type::Boolean,
             Value::Uninitialized => Type::Uninitialized,
+        }
+    }
+
+    pub(crate) fn into_json(self) -> serde_json::Value {
+        match self {
+            Value::ArrayLike(array_like) => array_like.into_json(),
+            Value::MapLike(map_like) => map_like.into_json(),
+            Value::String(string) => serde_json::Value::String(string),
+            Value::Integer(integer) => serde_json::Value::Number(integer.into()),
+            Value::Decimal(decimal) => str::parse(&decimal.to_string())
+                .map(serde_json::Value::Number)
+                .unwrap_or_else(|_| serde_json::Value::String(decimal.to_string())),
+            Value::Null => serde_json::Value::Null,
+            Value::Boolean(boolean) => serde_json::Value::Bool(boolean),
+            Value::Uninitialized => unreachable!(),
         }
     }
 }
@@ -193,7 +228,7 @@ impl Access {
     pub(crate) fn init_value(
         &self,
         value: crate::data::Value,
-    ) -> Result<crate::data::Value, crate::data::Error> {
+    ) -> Result<crate::data::Value, crate::data::EvaluationError> {
         match &self.kind {
             AccessKind::ObjectAccess { key } => {
                 Ok(Value::new_map_like(MapKind::Object, key.to_string(), value))
@@ -203,6 +238,8 @@ impl Access {
             }
             AccessKind::ArrayAccessNew => todo!(),
             AccessKind::ArrayAccessLast => todo!(),
+            AccessKind::TupleAccessLast => todo!(),
+            AccessKind::TupleAccessNew => todo!(),
         }
     }
 }
@@ -212,11 +249,12 @@ impl AccessKind {
             AccessKind::ObjectAccess { key } => Type::Object,
             AccessKind::MapAccess { key } => Type::Map,
             AccessKind::ArrayAccessNew | AccessKind::ArrayAccessLast => Type::Array,
+            AccessKind::TupleAccessLast | AccessKind::TupleAccessNew => Type::Tuple,
         }
     }
 }
 
-fn get_value(accesses: &[crate::parser::Access], value: Value) -> Result<Value, Error> {
+fn get_value(accesses: &[crate::parser::Access], value: Value) -> Result<Value, EvaluationError> {
     match accesses.split_first() {
         Some((head, tail)) => head.init_value(get_value(tail, value)?),
         None => Ok(value),
@@ -224,7 +262,7 @@ fn get_value(accesses: &[crate::parser::Access], value: Value) -> Result<Value, 
 }
 
 #[derive(Debug)]
-pub(crate) struct Error {
+pub(crate) struct EvaluationError {
     span: Span,
     kind: ErrorKind,
 }
@@ -253,21 +291,18 @@ pub(crate) enum Type {
     Uninitialized,
 }
 
-pub(crate) fn evaluate(parsed: Parsed) -> Result<Value, Error> {
+pub(crate) fn evaluate(parsed: Parsed) -> Result<Value, EvaluationError> {
     let result = Value::Uninitialized;
     parsed
         .into_entries()
         .into_iter()
-        .try_fold(result, |result, entry| {
-            println!("\n\nresult = {result:#?}");
-            result.update(entry)
-        })
+        .try_fold(result, |result, entry| result.update(entry))
 }
 
 fn evaluate_entry(
     mut result: Option<Value>,
     entry: crate::parser::Entry,
-) -> Result<Option<Value>, Error> {
+) -> Result<Option<Value>, EvaluationError> {
     let (init, last) = {
         let head = entry.accesses.head;
         let tail = entry.accesses.tail;
@@ -283,7 +318,7 @@ fn evaluate_entry(
     Ok(result.clone())
 }
 
-fn construct_value(last: crate::parser::Access, value: Value) -> Result<Value, Error> {
+fn construct_value(last: crate::parser::Access, value: Value) -> Result<Value, EvaluationError> {
     todo!()
 }
 
