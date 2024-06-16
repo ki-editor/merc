@@ -1,19 +1,80 @@
+use annotate_snippets::{Annotation, Level};
 use indexmap::IndexMap;
 use itertools::Itertools;
 use rust_decimal::Decimal;
 
-use crate::parser::{Access, AccessKind, Parsed, Span, Statement, ValueKind};
+use crate::parser::{Access, AccessKind, Parsed, Span, ValueKind};
 
 #[derive(Clone, Debug)]
-pub enum Value {
-    ArrayLike(ArrayLike),
-    MapLike(MapLike),
+pub(crate) struct Value {
+    typ: ValueType,
+    inferred_at: Span,
+}
+
+#[derive(Clone, Debug)]
+enum ValueType {
     String(String),
     Integer(isize),
     Decimal(Decimal),
     Null,
     Boolean(bool),
+    ArrayLike(ArrayLike),
+    MapLike(MapLike),
     Uninitialized,
+}
+
+impl ValueType {
+    fn typ(&self) -> Type {
+        match self {
+            ValueType::ArrayLike(ArrayLike {
+                kind: ArrayKind::Array,
+                ..
+            }) => Type::Array,
+            ValueType::ArrayLike(ArrayLike {
+                kind: ArrayKind::Tuple,
+                ..
+            }) => Type::Tuple,
+            ValueType::MapLike(MapLike {
+                kind: MapKind::Object,
+                ..
+            }) => Type::Object,
+            ValueType::MapLike(MapLike {
+                kind: MapKind::Map, ..
+            }) => Type::Map,
+            ValueType::Uninitialized => Type::Uninitialized,
+            ValueType::String(_) => Type::String,
+            ValueType::Integer(_) => Type::Integer,
+            ValueType::Decimal(_) => Type::Decimal,
+            ValueType::Null => Type::Null,
+            ValueType::Boolean(_) => Type::Boolean,
+        }
+    }
+
+    fn is_scalar(&self) -> bool {
+        matches!(
+            self,
+            ValueType::String(_)
+                | ValueType::Integer(_)
+                | ValueType::Decimal(_)
+                | ValueType::Null
+                | ValueType::Boolean(_)
+        )
+    }
+
+    fn into_json(self) -> serde_json::Value {
+        match self {
+            ValueType::ArrayLike(array_like) => array_like.into_json(),
+            ValueType::MapLike(map_like) => map_like.into_json(),
+            ValueType::String(string) => serde_json::Value::String(string),
+            ValueType::Integer(integer) => serde_json::Value::Number(integer.into()),
+            ValueType::Decimal(decimal) => str::parse(&decimal.to_string())
+                .map(serde_json::Value::Number)
+                .unwrap_or_else(|_| serde_json::Value::String(decimal.to_string())),
+            ValueType::Null => serde_json::Value::Null,
+            ValueType::Boolean(boolean) => serde_json::Value::Bool(boolean),
+            ValueType::Uninitialized => unreachable!(),
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -29,21 +90,18 @@ impl ArrayLike {
         }
     }
 
-    fn push_new(mut self, tail: &[Access], value: Value) -> Result<ArrayLike, EvaluationError> {
-        let new_element = Value::Uninitialized.set(tail, value)?;
+    fn push_new(mut self, tail: &[Access], value: Value) -> Result<ArrayLike, EvaluateError> {
+        let new_element = Value::uninitialized().set(tail, value)?;
         self.array.push(new_element);
         Ok(self)
     }
 
-    fn set_last(mut self, tail: &[Access], value: Value) -> Result<ArrayLike, EvaluationError> {
+    fn set_last(mut self, tail: &[Access], value: Value) -> Result<ArrayLike, EvaluateError> {
         if let Some(last) = self.array.pop() {
             self.array.push(last.set(tail, value)?);
             Ok(self)
         } else {
-            Err(EvaluationError {
-                span: todo!(),
-                kind: ErrorKind::LastArrayElementNotFound,
-            })
+            todo!()
         }
     }
 
@@ -74,13 +132,19 @@ impl MapLike {
         }
     }
 
-    fn set(self, key: &str, tail: &[Access], value: Value) -> Result<Self, EvaluationError> {
+    fn set(self, key: &str, tail: &[Access], value: Value) -> Result<Self, EvaluateError> {
         let mut map = self.map;
-        let map = if let Some(object_value) = map.shift_remove(key) {
-            map.insert(key.to_string(), object_value.set(tail, value)?);
+        let map = if let Some(current_value) = map.shift_remove(key) {
+            if current_value.is_scalar() && value.is_scalar() {
+                return Err(EvaluateError::DuplicateAssignment {
+                    previously_assigned_at: current_value.inferred_at,
+                    now_assigned_again_at: value.inferred_at,
+                });
+            }
+            map.insert(key.to_string(), current_value.set(tail, value)?);
             map
         } else {
-            map.insert(key.to_string(), Value::Uninitialized.set(tail, value)?);
+            map.insert(key.to_string(), Value::uninitialized().set(tail, value)?);
             map
         };
         Ok(Self {
@@ -105,177 +169,226 @@ enum MapKind {
     Map,
 }
 impl Value {
-    fn new_map_like(kind: MapKind, key: String, value: Value) -> Value {
-        Value::MapLike(MapLike {
-            kind,
-            map: {
-                let mut map = IndexMap::new();
-                map.insert(key, value);
-                map
-            },
-        })
-    }
-
-    fn update(self, entry: crate::parser::Entry) -> Result<Value, EvaluationError> {
+    fn update(self, entry: crate::parser::Entry) -> Result<Value, EvaluateError> {
         self.set(
             &entry.accesses.into_iter().collect_vec(),
             evaluate_value(entry.value),
         )
     }
 
-    fn set(self, accesses: &[Access], value: Value) -> Result<Value, EvaluationError> {
+    fn set(self, accesses: &[Access], value: Value) -> Result<Value, EvaluateError> {
         let Some((head, tail)) = accesses.split_first() else {
             return Ok(value);
         };
 
         let span = head.span.clone();
 
-        match (self, &head.kind) {
-            (Value::Uninitialized, AccessKind::MapAccess { .. }) => {
-                Value::MapLike(MapLike::new(MapKind::Map)).set(accesses, value)
+        match (&self.typ, &head.kind) {
+            (ValueType::Uninitialized, AccessKind::MapAccess { .. }) => Value {
+                inferred_at: span,
+                typ: ValueType::MapLike(MapLike::new(MapKind::Map)),
             }
-            (Value::Uninitialized, AccessKind::ObjectAccess { .. }) => {
-                Value::MapLike(MapLike::new(MapKind::Object)).set(accesses, value)
+            .set(accesses, value),
+            (ValueType::Uninitialized, AccessKind::ObjectAccess { .. }) => Value {
+                inferred_at: span,
+                typ: ValueType::MapLike(MapLike::new(MapKind::Object)),
             }
-            (Value::Uninitialized, AccessKind::ArrayAccessNew) => {
-                Value::ArrayLike(ArrayLike::new(ArrayKind::Array)).set(accesses, value)
+            .set(accesses, value),
+            (ValueType::Uninitialized, AccessKind::ArrayAccessNew) => Value {
+                inferred_at: span,
+                typ: ValueType::ArrayLike(ArrayLike::new(ArrayKind::Array)),
             }
-            (Value::Uninitialized, AccessKind::TupleAccessNew) => {
-                Value::ArrayLike(ArrayLike::new(ArrayKind::Tuple)).set(accesses, value)
+            .set(accesses, value),
+            (ValueType::Uninitialized, AccessKind::TupleAccessNew) => Value {
+                inferred_at: span,
+                typ: ValueType::ArrayLike(ArrayLike::new(ArrayKind::Tuple)),
             }
-            (Value::ArrayLike(array), AccessKind::ArrayAccessNew) => {
-                Ok(Value::ArrayLike(array.push_new(tail, value)?))
+            .set(accesses, value),
+            (ValueType::Uninitialized, AccessKind::ArrayAccessLast) => {
+                Err(EvaluateError::LastArrayElementNotFound { span })
             }
-            (Value::ArrayLike(array), AccessKind::ArrayAccessLast) => {
-                Ok(Value::ArrayLike(array.set_last(tail, value)?))
-            }
-            (Value::ArrayLike(array), AccessKind::TupleAccessNew) => {
-                Ok(Value::ArrayLike(array.push_new(tail, value)?))
-            }
-            (Value::ArrayLike(array), AccessKind::TupleAccessLast) => {
-                Ok(Value::ArrayLike(array.set_last(tail, value)?))
-            }
+            (ValueType::ArrayLike(array), AccessKind::ArrayAccessNew) => Ok(self
+                .clone()
+                .update_value(ValueType::ArrayLike(array.clone().push_new(tail, value)?))),
+            (ValueType::ArrayLike(array), AccessKind::ArrayAccessLast) => Ok(self
+                .clone()
+                .update_value(ValueType::ArrayLike(array.clone().set_last(tail, value)?))),
+            (ValueType::ArrayLike(array), AccessKind::TupleAccessNew) => Ok(self
+                .clone()
+                .update_value(ValueType::ArrayLike(array.clone().push_new(tail, value)?))),
+            (ValueType::ArrayLike(array), AccessKind::TupleAccessLast) => Ok(self
+                .clone()
+                .update_value(ValueType::ArrayLike(array.clone().set_last(tail, value)?))),
             (
-                Value::MapLike(
+                ValueType::MapLike(
                     object @ MapLike {
                         kind: MapKind::Object,
                         ..
                     },
                 ),
                 AccessKind::ObjectAccess { key },
-            ) => Ok(Value::MapLike(object.set(key, tail, value)?)),
+            ) => Ok(self
+                .clone()
+                .update_value(ValueType::MapLike(object.clone().set(key, tail, value)?))),
             (
-                Value::MapLike(
+                ValueType::MapLike(
                     object @ MapLike {
                         kind: MapKind::Map, ..
                     },
                 ),
                 AccessKind::MapAccess { key },
-            ) => Ok(Value::MapLike(object.set(key, tail, value)?)),
-            (expected_value, actual_access) => Err(EvaluationError {
-                kind: ErrorKind::TypeMismatch {
-                    expected_type: expected_value.typ(),
-                    actual_type: actual_access.typ(),
-                },
-                span,
-            }),
-        }
-    }
-
-    fn typ(&self) -> Type {
-        match self {
-            Value::ArrayLike(ArrayLike {
-                kind: ArrayKind::Array,
-                ..
-            }) => Type::Array,
-            Value::ArrayLike(ArrayLike {
-                kind: ArrayKind::Tuple,
-                ..
-            }) => Type::Tuple,
-            Value::MapLike(MapLike {
-                kind: MapKind::Object,
-                ..
-            }) => Type::Object,
-            Value::MapLike(MapLike {
-                kind: MapKind::Map, ..
-            }) => Type::Map,
-            Value::String(_) => Type::String,
-            Value::Integer(_) => Type::Integer,
-            Value::Decimal(_) => Type::Decimal,
-            Value::Null => Type::Null,
-            Value::Boolean(_) => Type::Boolean,
-            Value::Uninitialized => Type::Uninitialized,
+            ) => Ok(self
+                .clone()
+                .update_value(ValueType::MapLike(object.clone().set(key, tail, value)?))),
+            (expected_value, actual_access) => {
+                Err(EvaluateError::TypeMismatch(Box::new(TypeMismatch::new(
+                    expected_value.typ(),
+                    self.inferred_at,
+                    actual_access.typ(),
+                    head.span.clone(),
+                ))))
+            }
         }
     }
 
     pub(crate) fn into_json(self) -> serde_json::Value {
-        match self {
-            Value::ArrayLike(array_like) => array_like.into_json(),
-            Value::MapLike(map_like) => map_like.into_json(),
-            Value::String(string) => serde_json::Value::String(string),
-            Value::Integer(integer) => serde_json::Value::Number(integer.into()),
-            Value::Decimal(decimal) => str::parse(&decimal.to_string())
-                .map(serde_json::Value::Number)
-                .unwrap_or_else(|_| serde_json::Value::String(decimal.to_string())),
-            Value::Null => serde_json::Value::Null,
-            Value::Boolean(boolean) => serde_json::Value::Bool(boolean),
-            Value::Uninitialized => unreachable!(),
+        self.typ.into_json()
+    }
+
+    fn uninitialized() -> Value {
+        Value {
+            typ: ValueType::Uninitialized,
+            inferred_at: Span::default(),
         }
+    }
+
+    fn update_value(self, typ: ValueType) -> Value {
+        Value { typ, ..self }
+    }
+
+    fn is_scalar(&self) -> bool {
+        self.typ.is_scalar()
     }
 }
 
-impl Access {
-    pub(crate) fn init_value(
-        &self,
-        value: crate::data::Value,
-    ) -> Result<crate::data::Value, crate::data::EvaluationError> {
-        match &self.kind {
-            AccessKind::ObjectAccess { key } => {
-                Ok(Value::new_map_like(MapKind::Object, key.to_string(), value))
-            }
-            AccessKind::MapAccess { key } => {
-                Ok(Value::new_map_like(MapKind::Map, key.to_string(), value))
-            }
-            AccessKind::ArrayAccessNew => todo!(),
-            AccessKind::ArrayAccessLast => todo!(),
-            AccessKind::TupleAccessLast => todo!(),
-            AccessKind::TupleAccessNew => todo!(),
-        }
-    }
-}
 impl AccessKind {
     pub(crate) fn typ(&self) -> crate::data::Type {
         match self {
-            AccessKind::ObjectAccess { key } => Type::Object,
-            AccessKind::MapAccess { key } => Type::Map,
+            AccessKind::ObjectAccess { .. } => Type::Object,
+            AccessKind::MapAccess { .. } => Type::Map,
             AccessKind::ArrayAccessNew | AccessKind::ArrayAccessLast => Type::Array,
             AccessKind::TupleAccessLast | AccessKind::TupleAccessNew => Type::Tuple,
         }
     }
 }
 
-fn get_value(accesses: &[crate::parser::Access], value: Value) -> Result<Value, EvaluationError> {
-    match accesses.split_first() {
-        Some((head, tail)) => head.init_value(get_value(tail, value)?),
-        None => Ok(value),
+impl EvaluateError {
+    pub(crate) fn display(&self, source: &str) -> String {
+        use annotate_snippets::{Renderer, Snippet};
+        let annotations: Vec<Annotation> = self.annotations();
+        let title = self.title();
+
+        let message = Level::Error.title(title).snippet(
+            annotations
+                .into_iter()
+                .fold(Snippet::source(source).fold(true), |result, annotation| {
+                    result.annotation(annotation)
+                }),
+        );
+
+        Renderer::plain().render(message).to_string()
+    }
+
+    fn annotations(&self) -> Vec<Annotation> {
+        match self {
+            EvaluateError::TypeMismatch(type_mismatch) => type_mismatch.annotations(),
+            EvaluateError::LastArrayElementNotFound { span } => [
+                Level::Error
+                    .span(span.byte_range())
+                    .label("Last array element not found."),
+                Level::Help
+                    .span(span.byte_range())
+                    .label("Change `[ ]` to `[i]`"),
+            ]
+            .into_iter()
+            .collect(),
+            EvaluateError::DuplicateAssignment {
+                previously_assigned_at,
+                now_assigned_again_at,
+            } => [
+                Level::Info
+                    .span(previously_assigned_at.byte_range())
+                    .label("A value was previously assigned at this path."),
+                Level::Error
+                    .span(now_assigned_again_at.byte_range())
+                    .label("Attempting to assign a new value at the same path is not allowed."),
+            ]
+            .into_iter()
+            .collect_vec(),
+        }
+    }
+
+    fn title(&self) -> &'static str {
+        match self {
+            EvaluateError::TypeMismatch(_) => "Type Mismatch",
+            EvaluateError::LastArrayElementNotFound { .. } => "Last Array Element Not Found",
+            EvaluateError::DuplicateAssignment { .. } => "Duplicate Assignment",
+        }
     }
 }
 
 #[derive(Debug)]
-pub(crate) struct EvaluationError {
-    span: Span,
-    kind: ErrorKind,
-}
-
-#[derive(Debug)]
-pub(crate) enum ErrorKind {
-    TypeMismatch {
-        expected_type: Type,
-        actual_type: Type,
+pub(crate) enum EvaluateError {
+    TypeMismatch(Box<TypeMismatch>),
+    LastArrayElementNotFound {
+        span: Span,
     },
-    LastArrayElementNotFound,
+    DuplicateAssignment {
+        previously_assigned_at: Span,
+        now_assigned_again_at: Span,
+    },
 }
+#[derive(Debug)]
+pub(crate) struct TypeMismatch {
+    expected_type_inferred_at: Span,
+    actual_type_inferred_at: Span,
+    info_label: String,
+    error_label: String,
+}
+impl TypeMismatch {
+    fn annotations(&self) -> Vec<Annotation> {
+        [
+            Level::Info
+                .span(self.expected_type_inferred_at.byte_range())
+                .label(&self.info_label),
+            Level::Error
+                .span(self.actual_type_inferred_at.byte_range())
+                .label(&self.error_label),
+        ]
+        .into_iter()
+        .collect_vec()
+    }
 
+    fn new(
+        expected_type: Type,
+        expected_type_inferred_at: Span,
+        actual_type: Type,
+        actual_type_inferred_at: Span,
+    ) -> Self {
+        Self {
+            expected_type_inferred_at,
+            actual_type_inferred_at,
+            info_label: format!(
+                "The type of the parent value was first inferred as {} due to this access.",
+                expected_type.display()
+            ),
+            error_label: format!(
+                "Error: this access treats the parent value as {}, but it was inferred as a different type.",
+                actual_type.display()
+            ),
+        }
+    }
+}
 #[derive(Debug)]
 pub(crate) enum Type {
     Map,
@@ -285,49 +398,45 @@ pub(crate) enum Type {
     String,
     Integer,
     Decimal,
-    Comment,
     Null,
     Boolean,
     Uninitialized,
 }
+impl Type {
+    fn display(&self) -> &'static str {
+        match self {
+            Type::Map => "Map",
+            Type::Array => "Array",
+            Type::Object => "Object",
+            Type::Tuple => "Tuple",
+            Type::String => "String",
+            Type::Integer => "Integer",
+            Type::Decimal => "Decimal",
+            Type::Null => "Null",
+            Type::Boolean => "Boolean",
+            Type::Uninitialized => "Uninitialized",
+        }
+    }
+}
 
-pub(crate) fn evaluate(parsed: Parsed) -> Result<Value, EvaluationError> {
-    let result = Value::Uninitialized;
+pub(crate) fn evaluate(parsed: Parsed) -> Result<Value, EvaluateError> {
+    let result = Value::uninitialized();
     parsed
         .into_entries()
         .into_iter()
         .try_fold(result, |result, entry| result.update(entry))
 }
 
-fn evaluate_entry(
-    mut result: Option<Value>,
-    entry: crate::parser::Entry,
-) -> Result<Option<Value>, EvaluationError> {
-    let (init, last) = {
-        let head = entry.accesses.head;
-        let tail = entry.accesses.tail;
-        match tail.split_last() {
-            Some((last, init)) => (
-                Some(head).into_iter().chain(init.to_vec()).collect_vec(),
-                last.clone(),
-            ),
-            None => (vec![], head.clone()),
-        }
-    };
-    let first_value = construct_value(last, evaluate_value(entry.value))?;
-    Ok(result.clone())
-}
-
-fn construct_value(last: crate::parser::Access, value: Value) -> Result<Value, EvaluationError> {
-    todo!()
-}
-
 fn evaluate_value(value: crate::parser::EntryValue) -> Value {
-    match value.kind {
-        ValueKind::MultilineString(string) | ValueKind::String(string) => Value::String(string),
-        ValueKind::Integer(integer) => todo!("integer = {integer}"),
-        ValueKind::Decimal(decimal) => Value::Decimal(decimal),
-        ValueKind::Boolean(boolean) => Value::Boolean(boolean),
-        ValueKind::Null => Value::Null,
+    let typ = match value.kind {
+        ValueKind::MultilineString(string) | ValueKind::String(string) => ValueType::String(string),
+        ValueKind::Integer(integer) => ValueType::Integer(integer),
+        ValueKind::Decimal(decimal) => ValueType::Decimal(decimal),
+        ValueKind::Boolean(boolean) => ValueType::Boolean(boolean),
+        ValueKind::Null => ValueType::Null,
+    };
+    Value {
+        typ,
+        inferred_at: value.span,
     }
 }

@@ -4,20 +4,14 @@ use pest::{error::Error, iterators::Pair, Parser};
 use pest_derive::Parser;
 use rust_decimal::Decimal;
 
-use crate::data;
-
 #[derive(Parser)]
 #[grammar = "marc.pest"]
 pub(crate) struct MarcParser;
 
-pub(crate) fn parse(input: &str) -> Result<Parsed, Error<Rule>> {
-    let file = MarcParser::parse(Rule::file, input)?
-        .into_iter()
-        .next()
-        .unwrap();
+pub(crate) fn parse(input: &str) -> Result<Parsed, Box<Error<Rule>>> {
+    let file = MarcParser::parse(Rule::file, input)?.next().unwrap();
     let statements = file
         .into_inner()
-        .into_iter()
         .filter_map(|pair| match pair.as_rule() {
             Rule::entry => {
                 let mut inner_rules = pair.into_inner();
@@ -25,10 +19,7 @@ pub(crate) fn parse(input: &str) -> Result<Parsed, Error<Rule>> {
                     let mut inner = inner_rules.next().unwrap().into_inner();
                     let access_head = parse_access(inner.next().unwrap());
 
-                    let access_tail = inner
-                        .into_iter()
-                        .map(|pair| parse_access(pair))
-                        .collect_vec();
+                    let access_tail = inner.map(|pair| parse_access(pair)).collect_vec();
 
                     NonEmpty {
                         head: access_head,
@@ -61,7 +52,7 @@ impl Parsed {
 }
 
 #[derive(Debug)]
-pub(crate) enum Statement {
+enum Statement {
     Entry(Entry),
     Comment(Comment),
 }
@@ -76,7 +67,7 @@ pub(crate) struct Entry {
 }
 
 fn parse_value(pair: Pair<Rule>) -> EntryValue {
-    let span = pair.as_span().clone().into();
+    let span = pair.as_span().into();
     let kind = match pair.as_rule() {
         Rule::string_inner => ValueKind::String(pair.as_str().to_string()),
         Rule::multiline_string_inner => ValueKind::MultilineString(pair.as_str().to_string()),
@@ -101,15 +92,22 @@ pub(crate) enum ValueKind {
 
 #[derive(Debug, Clone)]
 pub(crate) struct Span {
-    input: String,
     start: usize,
     end: usize,
+}
+impl Span {
+    pub(crate) fn byte_range(&self) -> std::ops::Range<usize> {
+        self.start..self.end
+    }
+
+    pub(crate) fn default() -> Span {
+        Span { start: 0, end: 0 }
+    }
 }
 
 impl From<pest::Span<'_>> for Span {
     fn from(value: pest::Span<'_>) -> Self {
         Self {
-            input: value.as_str().to_string(),
             start: value.start(),
             end: value.end(),
         }
