@@ -4,6 +4,8 @@ use pest::{error::Error, iterators::Pair, Parser};
 use pest_derive::Parser;
 use rust_decimal::Decimal;
 
+use crate::data::Identifier;
+
 #[derive(Parser)]
 #[grammar = "marc.pest"]
 pub(crate) struct MarcParser;
@@ -69,7 +71,7 @@ pub(crate) struct Entry {
 fn parse_value(pair: Pair<Rule>) -> EntryValue {
     let span = pair.as_span().into();
     let kind = match pair.as_rule() {
-        Rule::string_inner => ValueKind::String(pair.as_str().to_string()),
+        Rule::string => ValueKind::String(pair.into_inner().next().unwrap().as_str().to_string()),
         Rule::multiline_string_inner => ValueKind::MultilineString(pair.as_str().to_string()),
         Rule::number => ValueKind::Decimal(str::parse::<Decimal>(pair.as_str()).unwrap()),
         Rule::integer => ValueKind::Integer(str::parse::<isize>(pair.as_str()).unwrap()),
@@ -127,8 +129,8 @@ pub(crate) struct Access {
 }
 #[derive(Debug, Clone)]
 pub(crate) enum AccessKind {
-    ObjectAccess { key: String },
-    MapAccess { key: String },
+    ObjectAccess { key: Identifier },
+    MapAccess { key: Identifier },
     ArrayAccessNew,
     ArrayAccessLast,
     TupleAccessLast,
@@ -142,24 +144,20 @@ fn parse_access(pair: Pair<Rule>) -> Access {
         Rule::tuple_access_new => AccessKind::TupleAccessNew,
         Rule::tuple_access_last => AccessKind::TupleAccessLast,
         Rule::object_access => AccessKind::ObjectAccess {
-            key: pair
-                .into_inner()
-                .next()
-                .unwrap()
-                .as_str()
-                .trim()
-                .to_string(),
+            key: parse_identifier(pair.into_inner().next().unwrap()),
         },
         Rule::map_access => AccessKind::MapAccess {
-            key: pair
-                .into_inner()
-                .next()
-                .unwrap()
-                .as_str()
-                .trim()
-                .to_string(),
+            key: parse_identifier(pair.into_inner().next().unwrap()),
         },
         rule => unreachable!("rule = {:?}", rule),
     };
     Access { kind, span }
+}
+
+fn parse_identifier(pair: Pair<Rule>) -> Identifier {
+    match pair.as_rule() {
+        Rule::unquoted_identifier => Identifier::Unquoted(pair.as_str().to_string()),
+        Rule::string => Identifier::Quoted(pair.into_inner().next().unwrap().as_str().to_string()),
+        rule => unreachable!("rule = {:?}", rule),
+    }
 }

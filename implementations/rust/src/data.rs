@@ -75,6 +75,55 @@ impl ValueType {
             ValueType::Uninitialized => unreachable!(),
         }
     }
+
+    fn to_string_entries(&self, parent_path: &str) -> Vec<String> {
+        match self {
+            ValueType::String(s) => Some(format!("{parent_path} = {:?}", s))
+                .into_iter()
+                .collect(),
+            ValueType::Integer(i) => Some(format!("{parent_path} = {:?}", i))
+                .into_iter()
+                .collect(),
+            ValueType::Decimal(d) => Some(format!("{parent_path} = {:?}", d))
+                .into_iter()
+                .collect(),
+            ValueType::Null => Some(format!("{parent_path} = null")).into_iter().collect(),
+            ValueType::Boolean(b) => Some(format!("{parent_path} = {:?}", b))
+                .into_iter()
+                .collect(),
+            ValueType::ArrayLike(array) => {
+                array
+                    .array
+                    .iter()
+                    .flat_map(|value| {
+                        value.typ.to_string_entries("").into_iter().enumerate().map(
+                            |(index, entry)| {
+                                let path = match (&array.kind, index == 0) {
+                                    (ArrayKind::Array, true) => "[i]",
+                                    (ArrayKind::Array, false) => "[ ]",
+                                    (ArrayKind::Tuple, true) => "(i)",
+                                    (ArrayKind::Tuple, false) => "( )",
+                                };
+                                format!("{parent_path}{path}{entry}")
+                            },
+                        )
+                    })
+                    .collect()
+            }
+            ValueType::MapLike(map) => map
+                .map
+                .iter()
+                .flat_map(|(key, value)| {
+                    let path = match map.kind {
+                        MapKind::Object => format!(".{}", key.display()),
+                        MapKind::Map => format!("[{}]", key.display()),
+                    };
+                    value.typ.to_string_entries(&format!("{parent_path}{path}"))
+                })
+                .collect(),
+            ValueType::Uninitialized => unreachable!(),
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -122,7 +171,36 @@ enum ArrayKind {
 #[derive(Debug, Clone)]
 struct MapLike {
     kind: MapKind,
-    map: IndexMap<String, Value>,
+    map: IndexMap<Identifier, Value>,
+}
+#[derive(Debug, Clone, Hash, PartialEq, Eq, PartialOrd, Ord)]
+pub(crate) enum Identifier {
+    Quoted(String),
+    Unquoted(String),
+}
+impl Identifier {
+    fn to_string(&self) -> String {
+        match self {
+            Identifier::Quoted(string) | Identifier::Unquoted(string) => string.to_string(),
+        }
+    }
+    fn display(&self) -> String {
+        match self {
+            Identifier::Quoted(string) => format!("\"{}\"", string),
+            Identifier::Unquoted(string) => string.to_string(),
+        }
+    }
+
+    fn from_str(key: &str) -> Identifier {
+        if key
+            .chars()
+            .all(|c| c.is_alphanumeric() || c == '-' || c == '_')
+        {
+            Identifier::Unquoted(key.to_string())
+        } else {
+            Identifier::Quoted(key.to_string())
+        }
+    }
 }
 impl MapLike {
     fn new(kind: MapKind) -> Self {
@@ -132,19 +210,19 @@ impl MapLike {
         }
     }
 
-    fn set(self, key: &str, tail: &[Access], value: Value) -> Result<Self, EvaluateError> {
+    fn set(self, key: Identifier, tail: &[Access], value: Value) -> Result<Self, EvaluateError> {
         let mut map = self.map;
-        let map = if let Some(current_value) = map.shift_remove(key) {
+        let map = if let Some(current_value) = map.shift_remove(&key) {
             if current_value.is_scalar() && value.is_scalar() {
                 return Err(EvaluateError::DuplicateAssignment {
                     previously_assigned_at: current_value.inferred_at,
                     now_assigned_again_at: value.inferred_at,
                 });
             }
-            map.insert(key.to_string(), current_value.set(tail, value)?);
+            map.insert(key, current_value.set(tail, value)?);
             map
         } else {
-            map.insert(key.to_string(), Value::uninitialized().set(tail, value)?);
+            map.insert(key, Value::uninitialized().set(tail, value)?);
             map
         };
         Ok(Self {
@@ -157,7 +235,7 @@ impl MapLike {
         serde_json::Value::Object(
             self.map
                 .into_iter()
-                .map(|(key, value)| (key, value.into_json()))
+                .map(|(key, value)| (key.to_string(), value.into_json()))
                 .collect(),
         )
     }
@@ -169,10 +247,52 @@ enum MapKind {
     Map,
 }
 impl Value {
+    pub(crate) fn to_string(&self) -> String {
+        self.typ.to_string_entries("").join("\n")
+    }
+    pub(crate) fn from_json(json: serde_json::Value) -> Value {
+        match json {
+            serde_json::Value::Null => Value {
+                inferred_at: Span::default(),
+                typ: ValueType::Null,
+            },
+            serde_json::Value::Bool(boolean) => Value {
+                inferred_at: Span::default(),
+                typ: ValueType::Boolean(boolean),
+            },
+            serde_json::Value::Number(number) => Value {
+                inferred_at: Span::default(),
+                typ: ValueType::Decimal(Decimal::from_str_exact(&number.to_string()).unwrap()),
+            },
+            serde_json::Value::String(string) => Value {
+                inferred_at: Span::default(),
+                typ: ValueType::String(string.to_string()),
+            },
+            serde_json::Value::Array(array) => Value {
+                inferred_at: Span::default(),
+                typ: ValueType::ArrayLike(ArrayLike {
+                    kind: ArrayKind::Array,
+                    array: array.into_iter().map(Value::from_json).collect_vec(),
+                }),
+            },
+            serde_json::Value::Object(map) => {
+                Value {
+                    inferred_at: Span::default(),
+                    typ: ValueType::MapLike(MapLike {
+                        // We default to Object instead of Map, because I think Object is more common than Map
+                        kind: MapKind::Object,
+                        map: IndexMap::from_iter(map.into_iter().map(|(key, value)| {
+                            (Identifier::from_str(&key), Value::from_json(value))
+                        })),
+                    }),
+                }
+            }
+        }
+    }
     fn update(self, entry: crate::parser::Entry) -> Result<Value, EvaluateError> {
         self.set(
             &entry.accesses.into_iter().collect_vec(),
-            evaluate_value(entry.value),
+            evaluate_value(entry.value)?,
         )
     }
 
@@ -229,7 +349,11 @@ impl Value {
                 AccessKind::ObjectAccess { key },
             ) => Ok(self
                 .clone()
-                .update_value(ValueType::MapLike(object.clone().set(key, tail, value)?))),
+                .update_value(ValueType::MapLike(object.clone().set(
+                    key.clone(),
+                    tail,
+                    value,
+                )?))),
             (
                 ValueType::MapLike(
                     object @ MapLike {
@@ -239,7 +363,11 @@ impl Value {
                 AccessKind::MapAccess { key },
             ) => Ok(self
                 .clone()
-                .update_value(ValueType::MapLike(object.clone().set(key, tail, value)?))),
+                .update_value(ValueType::MapLike(object.clone().set(
+                    key.clone(),
+                    tail,
+                    value,
+                )?))),
             (expected_value, actual_access) => {
                 Err(EvaluateError::TypeMismatch(Box::new(TypeMismatch::new(
                     expected_value.typ(),
@@ -325,6 +453,7 @@ impl EvaluateError {
             ]
             .into_iter()
             .collect_vec(),
+            EvaluateError::StringUnescapeError { span, error } => todo!(),
         }
     }
 
@@ -333,6 +462,7 @@ impl EvaluateError {
             EvaluateError::TypeMismatch(_) => "Type Mismatch",
             EvaluateError::LastArrayElementNotFound { .. } => "Last Array Element Not Found",
             EvaluateError::DuplicateAssignment { .. } => "Duplicate Assignment",
+            EvaluateError::StringUnescapeError { .. } => "String Unsecape Error",
         }
     }
 }
@@ -346,6 +476,10 @@ pub(crate) enum EvaluateError {
     DuplicateAssignment {
         previously_assigned_at: Span,
         now_assigned_again_at: Span,
+    },
+    StringUnescapeError {
+        span: Span,
+        error: unescaper::Error,
     },
 }
 #[derive(Debug)]
@@ -427,16 +561,23 @@ pub(crate) fn evaluate(parsed: Parsed) -> Result<Value, EvaluateError> {
         .try_fold(result, |result, entry| result.update(entry))
 }
 
-fn evaluate_value(value: crate::parser::EntryValue) -> Value {
+fn evaluate_value(value: crate::parser::EntryValue) -> Result<Value, EvaluateError> {
     let typ = match value.kind {
-        ValueKind::MultilineString(string) | ValueKind::String(string) => ValueType::String(string),
+        ValueKind::MultilineString(string) | ValueKind::String(string) => {
+            ValueType::String(unescaper::unescape(&string).map_err(|error| {
+                EvaluateError::StringUnescapeError {
+                    span: value.span.clone(),
+                    error,
+                }
+            })?)
+        }
         ValueKind::Integer(integer) => ValueType::Integer(integer),
         ValueKind::Decimal(decimal) => ValueType::Decimal(decimal),
         ValueKind::Boolean(boolean) => ValueType::Boolean(boolean),
         ValueKind::Null => ValueType::Null,
     };
-    Value {
+    Ok(Value {
         typ,
         inferred_at: value.span,
-    }
+    })
 }

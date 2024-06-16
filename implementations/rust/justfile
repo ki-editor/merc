@@ -15,6 +15,9 @@ build:
     @echo "Running cargo build..."
     cargo build --workspace --tests
 
+build-wasm:
+    wasm-pack build --target bundler
+
 clippy:
     @echo "Running cargo clippy..."
     cargo clippy --workspace --tests -- -D warnings

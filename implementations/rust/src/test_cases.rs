@@ -1,13 +1,14 @@
-use crate::marc_to_json;
+use crate::{json_to_marc_string, marc_to_json, marc_to_json_string};
 
 #[test]
-fn generic_example_1() {
+fn marc_to_json_1() {
     let input = r#"
 # Map
 .materials{metal}.reflectivity = 1.0
 .materials{metal}.metallic = true
 .materials{plastic}.reflectivity = 0.5
 .materials{plastic}.conductivity = null
+.materials{"Infinity stones"}."soul affinity" = "fire"
 
 # Array of objects
 .entities[i].name = "hero"
@@ -28,6 +29,7 @@ They are found on Earth.
       "materials": {
         "metal": { "reflectivity": 1.0, "metallic": true },
         "plastic": { "reflectivity": 0.5, "conductivity": null },
+        "Infinity stones": { "soul affinity": "fire" }
       },
       "entities": [
         { "name": "hero", "material": "metal" },
@@ -35,7 +37,37 @@ They are found on Earth.
       ],
       "description": "These are common materials.\nThey are found on Earth."
     });
-    pretty_assertions::assert_eq!(marc_to_json(input).unwrap(), expected_json)
+    let actual: serde_json::Value =
+        serde_json::from_str(&marc_to_json_string(input).unwrap()).unwrap();
+    pretty_assertions::assert_eq!(actual, expected_json)
+}
+
+#[test]
+fn json_to_marc_1() {
+    let expected_marc = r#"
+.description = "These are common materials.\nThey are found on Earth."
+.entities[i].material = "metal"
+.entities[ ].name = "hero"
+.entities[i].material = "plastic"
+.entities[ ].name = "monster"
+.materials.metal.metallic = true
+.materials.metal.reflectivity = 1.0
+.materials.plastic.conductivity = null
+.materials.plastic.reflectivity = 0.5
+"#
+    .trim();
+    let input = r#"{
+      "materials": {
+        "metal": { "reflectivity": 1.0, "metallic": true },
+        "plastic": { "reflectivity": 0.5, "conductivity": null }
+      },
+      "entities": [
+        { "name": "hero", "material": "metal" },
+        { "name": "monster", "material": "plastic" }
+      ],
+      "description": "These are common materials.\nThey are found on Earth."
+    }"#;
+    pretty_assertions::assert_eq!(json_to_marc_string(input).unwrap(), expected_marc)
 }
 
 #[test]
@@ -87,12 +119,22 @@ fn top_level_tuple_1() {
 }
 
 #[test]
+fn escaped_string() {
+    let input = r#"
+.x = "\"hello\n\""
+"#
+    .trim();
+    let expected_json: serde_json::Value = serde_json::from_str(r#"{"x": "\"hello\n\""}"#).unwrap();
+    pretty_assertions::assert_eq!(marc_to_json(input).unwrap(), expected_json)
+}
+
+#[test]
 fn parse_error_1() {
     let input = r#"
 .x.y 1
 "#
     .trim();
-    pretty_assertions::assert_eq!(marc_to_json(input).err().unwrap(), " --> 1:6
+    pretty_assertions::assert_eq!(marc_to_json_string(input).err().unwrap(), " --> 1:6
   |
 1 | .x.y 1
   |      ^---
@@ -108,7 +150,7 @@ fn error_duplicate_assignment_1() {
 "#
     .trim();
     pretty_assertions::assert_eq!(
-        marc_to_json(input).err().unwrap(),
+        marc_to_json_string(input).err().unwrap(),
         "
 error: Duplicate Assignment
   |
@@ -129,7 +171,7 @@ fn error_type_mismatch_1() {
 "#
     .trim();
     pretty_assertions::assert_eq!(
-        marc_to_json(input).err().unwrap(),
+        marc_to_json_string(input).err().unwrap(),
         "
 error: Type Mismatch
   |
@@ -149,7 +191,7 @@ fn error_last_array_element_not_found_1() {
 "#
     .trim();
     pretty_assertions::assert_eq!(
-        marc_to_json(input).err().unwrap(),
+        marc_to_json_string(input).err().unwrap(),
         "
 error: Last Array Element Not Found
   |

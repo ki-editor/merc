@@ -1,26 +1,33 @@
 file                   =  { SOI ~ (entry | COMMENT)+ ~ EOI }
 alpha                  = _{ 'a'..'z' | 'A'..'Z' }
 digit                  = _{ '0'..'9' }
-identifier             = @{ (ASCII_ALPHANUMERIC | "-" | "_")+  }
+unquoted_identifier    = @{ (ASCII_ALPHANUMERIC | "-" | "_")+  }
+identifier             = _{ unquoted_identifier | string }
 WHITESPACE             = _{ " " | "\t" | NEWLINE }
 COMMENT                =  { "#" ~ (!NEWLINE ~ ANY)* }
 entry                  =  { accesses ~ "=" ~ value }
 accesses               =  { (access)+ }
 access                 =  _{ (object_access | map_access | array_access_new | array_access_last | tuple_access_new | tuple_access_last ) }
-array_access_new      =  { "[" ~ "i" ~ "]" }
-array_access_last   =  { "[" ~ "]" }
-tuple_access_new      =  { "(" ~ "i" ~ ")" }
-tuple_access_last   =  { "(" ~ ")" }
+array_access_new       =  { "[" ~ "i" ~ "]" }
+array_access_last      =  { "[" ~ "]" }
+tuple_access_new       =  { "(" ~ "i" ~ ")" }
+tuple_access_last      =  { "(" ~ ")" }
 object_access          =  { "." ~ identifier }
 map_access             =  { "{" ~ identifier ~ "}" }
 value                  =  _{ null | boolean | number | multiline_string | string | enum }
 multiline_string       = _{ "\"\"\"" ~ multiline_string_inner ~ "\"\"\"" }
 multiline_string_inner = { ((!"\"\"\"") ~ ANY)* }
-string                 =  _{ "\"" ~ string_inner ~ "\"" }
-string_inner           =  { (!"\"" ~ ANY)* }
 boolean                =  { "true" | "false" }
 null                   =  { "null" }
-enum                   =  { "#" ~ (identifier | string) }
+enum                   =  { "#" ~ identifier }
+string                 = ${ "\"" ~ string_inner ~ "\"" }
+string_inner           = @{ char* }
+char                   = {
+    !("\"" | "\\") ~ ANY
+    | "\\" ~ ("\"" | "\\" | "/" | "b" | "f" | "n" | "r" | "t")
+    | "\\" ~ ("u" ~ ASCII_HEX_DIGIT{4})
+}
+
 
 number = @{
     "-"? ~ ( "0" | ASCII_NONZERO_DIGIT ~ ASCII_DIGIT* ) ~ fraction? ~ exponent?
