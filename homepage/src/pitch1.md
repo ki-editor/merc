@@ -1,5 +1,7 @@
 # A taste of MARC
 
+In MARC, the path of every value is explicitly written down, redundantly.
+
 ```bash
 # Object
 .user.name = "Lee"
@@ -95,6 +97,51 @@ In contrast to many common configuration formats, MARC clearly differentiates be
 
 This distinction may seem subtle, but it becomes incredibly valuable in large configuration files. It provides clarity and assurance, allowing you to immediately recognize which properties are defined by the user and which are dictated by the schema.
 
+For example, consider the following Nx.json config:
+
+```json
+{
+  "targetDefaults": {
+    "build": {
+      "inputs": ["production", "^production"],
+      "dependsOn": ["^build"],
+      "options": {
+        "main": "{projectRoot}/src/index.ts"
+      },
+      "cache": true
+    },
+    "test": {
+      "cache": true,
+      "inputs": ["default", "^production", "{workspaceRoot}/jest.preset.js"],
+      "outputs": ["{workspaceRoot}/coverage/{projectRoot}"],
+      "executor": "@nx/jest:jest"
+    }
+  }
+}
+```
+
+In this snippet, it’s ambiguous whether `build` or `test` are defined by the user or are part of the predefined schema.
+Similarly, `options.main` could raise questions about its origin.
+
+MARC eliminates such ambiguities:
+
+```python
+.targetDefaults.{build}.cache = true
+.targetDefaults.{build}.dependsOn[i] = "^build"
+.targetDefaults.{build}.inputs[i] = "production"
+.targetDefaults.{build}.inputs[i] = "^production"
+.targetDefaults.{build}.options.main = "{projectRoot}/src/index.ts"
+.targetDefaults.{test}.cache = true
+.targetDefaults.{test}.executor = "@nx/jest:jest"
+.targetDefaults.{test}.inputs[i] = "default"
+.targetDefaults.{test}.inputs[i] = "^production"
+.targetDefaults.{test}.inputs[i] = "{workspaceRoot}/jest.preset.js"
+.targetDefaults.{test}.outputs[i] = "{workspaceRoot}/coverage/{projectRoot}"
+```
+
+With MARC, every element’s role is transparent. User-defined properties are clearly marked, eliminating any guesswork and streamlining both documentation and maintenance processes.
+
 # Playground
 
-The following component is a 4-way converter, each of them can be modified, modifying one of them updates the other 3.
+Discover the functionality of MARC with the following 4-way converter.  
+Edit any format—MARC, JSON, YAML, or TOML—and see immediate updates in the others.

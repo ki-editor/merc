@@ -1,8 +1,16 @@
+# Comparison
+
+| Features/Format        | MARC | JSON | YAML                       | TOML                 |
+| ---------------------- | ---- | ---- | -------------------------- | -------------------- |
+| Comment                | ✅   |      | ✅                         | ✅                   |
+| Single representation  | ✅   | ✅   | Due to Anchors and Aliases | Due to inline tables |
+| Whitespace insensitive | ✅   | ✅   |                            | ✅                   |
+
 # Semantic Rules
 
 ## Rule 1: Duplicated assignment is not allowed
 
-Once a path has a defined scalar value, it cannot be redefined again.
+Once a path is assigned a scalar value, it cannot be assigned another value.
 
 ```bash
 .x.y = 1
