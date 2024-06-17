@@ -80,3 +80,48 @@ comment = comment-singleline / comment-multiline
 comment-singleline = "#" (?)
 comment-multiline = "###" (?) "###"
 ```
+
+# MARC
+
+MARC, the MAximally Redundant Config language.
+
+## Why MARC?
+
+### 1. Easy to copy and paste
+
+To demonstrate, we'll use the following example found from Github Actions documentation.
+
+```yaml
+on:
+  push:
+    paths:
+      - "**.js"
+```
+
+You cannot just copy and paste this snippet into the following Github Actions config file and expect it to work.
+
+You have to perform a **merge**, which is tedious and error-prone, and this becomes exponentially harder with the size of the existing config.
+
+In this case, you should only copy `paths:\n      - '**.js'`, and paste it as the child of the `push` field.
+
+```yaml
+on:
+  push:
+    # Sequence of patterns matched against refs/heads
+    branches:
+      - main
+      - "mona/octocat"
+      - "releases/**"
+    # Sequence of patterns matched against refs/tags
+    tags:
+      - v2
+      - v1.*
+```
+
+Suppose Github Actions config uses MARC, the documentation example above would look as follows, and copy and pasting it becomes a no-brainer, because no **merging** is required.
+
+```bash
+on.push.paths[i] = "**.js"
+```
+
+###

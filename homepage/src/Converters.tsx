@@ -31,6 +31,32 @@ export function Converters() {
     setYaml(stringifyError(json_to_yaml_string)(json));
     setToml(stringifyError(json_to_toml_string)(json));
   };
+  React.useEffect(() => {
+    updateMarc(
+      `
+# Map
+.materials{metal}.reflectivity = 1.0
+.materials{metal}.metallic = true
+.materials{plastic}.reflectivity = 0.5
+.materials{plastic}.conductivity = -1
+.materials{"Infinity stones"}."soul affinity" = "fire"
+
+# Array of objects
+.entities[i].name = "hero"
+.entities[ ].material = "metal"
+
+.entities[i].name = "monster"
+.entities[ ].material = "plastic"
+
+# Multiline string
+.description = """
+These are common materials.
+They are found on Earth.
+"""
+
+`.trim()
+    );
+  }, []);
   const updateJson = (json: string) => {
     setJson(json);
     setMarc(stringifyError(json_to_marc_string)(json));
@@ -64,7 +90,7 @@ export function Converters() {
         <Editor
           title="MARC"
           value={marc}
-          language="bash"
+          language="python"
           onChange={updateMarc}
         />
         <Editor
