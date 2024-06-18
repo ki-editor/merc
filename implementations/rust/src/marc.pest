@@ -1,11 +1,11 @@
-file                   =  { SOI ~ (entry | COMMENT)+ ~ EOI }
+file                   =  { SOI ~ entry+ ~ EOI }
 alpha                  = _{ 'a'..'z' | 'A'..'Z' }
 digit                  = _{ '0'..'9' }
 unquoted_identifier    = @{ (ASCII_ALPHANUMERIC | "-" | "_")+  }
 identifier             = _{ unquoted_identifier | string }
 WHITESPACE             = _{ " " | "\t" | NEWLINE }
-COMMENT                =  { "#" ~ (!NEWLINE ~ ANY)* }
-entry                  =  { accesses ~ "=" ~ value }
+comment                =  @{ "#" ~ (!NEWLINE ~ ANY)* }
+entry                  =  { comment? ~ accesses ~ "=" ~ value }
 accesses               =  { (access)+ }
 access                 =  _{ (object_access | map_access | array_access_new | array_access_last | tuple_access_new | tuple_access_last ) }
 array_access_new       =  { "[" ~ "i" ~ "]" }

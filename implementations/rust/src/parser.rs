@@ -17,9 +17,20 @@ pub(crate) fn parse(input: &str) -> Result<Parsed, Box<Error<Rule>>> {
         .filter_map(|pair| match pair.as_rule() {
             Rule::entry => {
                 let mut inner_rules = pair.into_inner();
+                let first_token = inner_rules.next().unwrap();
+                let (comment, next_token) = if first_token.as_rule() == Rule::comment {
+                    (
+                        Some(first_token.as_str().to_string()),
+                        inner_rules.next().unwrap(),
+                    )
+                } else {
+                    (None, first_token)
+                };
                 let accesses = {
-                    let mut inner = inner_rules.next().unwrap().into_inner();
-                    let access_head = parse_access(inner.next().unwrap());
+                    let mut inner = next_token.into_inner();
+
+                    let next = inner.next().unwrap();
+                    let access_head = parse_access(next);
 
                     let access_tail = inner.map(|pair| parse_access(pair)).collect_vec();
 
@@ -29,9 +40,13 @@ pub(crate) fn parse(input: &str) -> Result<Parsed, Box<Error<Rule>>> {
                     }
                 };
                 let value = parse_value(inner_rules.next().unwrap());
-                Some(Statement::Entry(Entry { accesses, value }))
+                Some(Statement::Entry(Entry {
+                    comment,
+                    accesses,
+                    value,
+                }))
             }
-            Rule::COMMENT => Some(Statement::Comment(Comment(pair.as_str().to_string()))),
+            Rule::comment => Some(Statement::Comment(Comment(pair.as_str().to_string()))),
             Rule::EOI => None,
             _ => unreachable!(),
         })
@@ -51,6 +66,12 @@ impl Parsed {
             })
             .collect_vec()
     }
+
+    pub(crate) fn to_string(self) -> Result<String, crate::Error> {
+        let marc_value = crate::data::evaluate(self)
+            .map_err(|error| crate::Error::EvaluationError(Box::new(error)))?;
+        Ok(marc_value.print())
+    }
 }
 
 #[derive(Debug)]
@@ -64,6 +85,7 @@ struct Comment(String);
 
 #[derive(Debug)]
 pub(crate) struct Entry {
+    pub(crate) comment: Option<String>,
     pub(crate) accesses: NonEmpty<Access>,
     pub(crate) value: EntryValue,
 }

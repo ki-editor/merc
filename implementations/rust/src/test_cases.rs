@@ -1,4 +1,4 @@
-use crate::{json_to_marc_string, marc_to_json, marc_to_json_string};
+use crate::{format_marc, json_to_marc_string, marc_to_json, marc_to_json_string, parser::parse};
 
 #[test]
 fn marc_to_json_1() {
@@ -45,7 +45,10 @@ They are found on Earth.
 #[test]
 fn json_to_marc_1() {
     let expected_marc = r#"
-.description = "These are common materials.\nThey are found on Earth."
+.description = """
+These are common materials.
+They are found on Earth.
+"""
 .entities[i].material = "metal"
 .entities[ ].name = "hero"
 .entities[i].material = "plastic"
@@ -139,7 +142,7 @@ fn parse_error_1() {
 1 | .x.y 1
   |      ^---
   |
-  = expected COMMENT, array_access_new, array_access_last, tuple_access_new, tuple_access_last, object_access, or map_access")
+  = expected array_access_new, array_access_last, tuple_access_new, tuple_access_last, object_access, or map_access")
 }
 
 #[test]
@@ -201,5 +204,69 @@ error: Last Array Element Not Found
   |
 "
         .trim()
+    )
+}
+
+#[test]
+fn format_marc_1() {
+    let input = r#"
+# Map
+.materials{metal}.reflectivity = 1.0
+.materials{"plastic"}.reflectivity = 0.5
+.materials{metal}.metallic = true
+.materials{plastic}.conductivity = null
+.materials{"Infinity stones"}."soul affinity" = "fire"
+
+# Array of objects
+.entities[i].name = "hero"
+.entities[ ].material = "metal"
+
+.entities[i].material = "plastic"
+.entities[ ].name = "monster"
+
+# Multiline string
+.description = """
+These \u1234 are common materials.
+They are found on Earth.
+"""
+
+"#
+    .trim();
+    let expected = r#"
+# Multiline string
+.description = """
+These ሴ are common materials.
+They are found on Earth.
+"""
+.entities[i].material = "metal"
+
+# Array of objects
+.entities[ ].name = "hero"
+.entities[i].material = "plastic"
+.entities[ ].name = "monster"
+.materials{"Infinity stones"}."soul affinity" = "fire"
+.materials{metal}.metallic = true
+
+# Map
+.materials{metal}.reflectivity = 1.0
+.materials{plastic}.conductivity = null
+.materials{plastic}.reflectivity = 0.5
+"#
+    .trim();
+    let actual = format_marc(input).unwrap();
+
+    pretty_assertions::assert_eq!(actual, expected);
+
+    // Test reciprocity:
+    // format(parse(format(marc))) === format(marc)
+    assert_eq!(
+        format_marc(
+            &parse(&format_marc(input).unwrap())
+                .unwrap()
+                .to_string()
+                .unwrap()
+        )
+        .unwrap(),
+        format_marc(input).unwrap()
     )
 }

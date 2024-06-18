@@ -1,5 +1,5 @@
 use data::evaluate;
-use parser::Rule;
+use parser::{parse, Rule};
 use wasm_bindgen::prelude::*;
 
 mod data;
@@ -9,7 +9,7 @@ mod parser;
 mod test_cases;
 
 #[derive(Debug)]
-enum Error {
+pub(crate) enum Error {
     ParseError(Box<pest::error::Error<Rule>>),
     EvaluationError(Box<data::EvaluateError>),
 }
@@ -30,7 +30,7 @@ fn marc_to_json(marc: &str) -> Result<serde_json::Value, Error> {
 #[wasm_bindgen]
 pub fn json_to_marc_string(json: &str) -> Result<String, String> {
     json_to_marc(json)
-        .map(|marc| marc.to_string())
+        .map(|marc| marc.print())
         .map_err(|err| err.to_string())
 }
 
@@ -123,4 +123,13 @@ mod test_lib {
             serde_json::to_string_pretty(&serde_json::json!({"x": {"y": 2}})).unwrap()
         )
     }
+}
+
+#[wasm_bindgen]
+pub fn format_marc(marc: &str) -> Result<String, String> {
+    fn format_marc(marc: &str) -> Result<String, Error> {
+        let parsed = parser::parse(marc).map_err(Error::ParseError)?;
+        parsed.to_string()
+    }
+    format_marc(marc).map_err(|err| err.display(marc))
 }
