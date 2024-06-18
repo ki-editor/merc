@@ -1,8 +1,10 @@
 import * as React from "react";
+import "./Pitches.css";
 import Markdown from "react-markdown";
 import pitch1 from "./pitch1.md?raw";
 import pitch2 from "./pitch2.md?raw";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
+import remarkGfm from "remark-gfm";
 
 export function Pitch1() {
   return <RenderMarkdown markdown={pitch1} />;
@@ -18,6 +20,7 @@ export function RenderMarkdown(props: { markdown: string }) {
       style={{ padding: "16px 32px", maxWidth: 1200, justifySelf: "center" }}
     >
       <Markdown
+        remarkPlugins={[remarkGfm]}
         components={{
           code(props) {
             const { children, className, node, style, ref, ...rest } = props;

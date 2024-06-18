@@ -7,6 +7,7 @@ import {
   json_to_toml_string,
   yaml_to_json_string,
   toml_to_json_string,
+  format_marc,
 } from "marc";
 import React from "react";
 
@@ -35,15 +36,15 @@ export function Converters() {
     updateMarc(
       `
 # Map
+.materials{"Infinity stones"}."soul affinity" = "fire"
 .materials{metal}.reflectivity = 1.0
 .materials{metal}.metallic = true
 .materials{plastic}.reflectivity = 0.5
 .materials{plastic}.conductivity = -1
-.materials{"Infinity stones"}."soul affinity" = "fire"
 
 # Array of objects
-.entities[i].name = "hero"
-.entities[ ].material = "metal"
+.entities[i].material = "metal"
+.entities[ ].name = "hero"
 
 .entities[i].name = "monster"
 .entities[ ].material = "plastic"
@@ -92,6 +93,7 @@ They are found on Earth.
           value={marc}
           language="python"
           onChange={updateMarc}
+          format={format_marc}
         />
         <Editor
           title="JSON"
@@ -121,30 +123,59 @@ const Editor = (props: {
   language: string;
   value: string;
   onChange: (value: string) => void;
-}) => (
-  <div
-    style={{
-      display: "grid",
-      gridTemplateRows: "auto 1fr",
-    }}
-  >
-    <div className="title">{props.title}</div>
-    <div style={{ display: "grid", overflow: "auto" }}>
-      <div style={{ display: "grid" }}>
-        <CodeEditor
-          value={props.value}
-          language={props.language}
-          onChange={(event) => props.onChange(event.target.value)}
-          padding={16}
-          style={{
-            width: "100%",
-            backgroundColor: "#f5f5f5",
-            fontSize: 16,
-            fontFamily:
-              "ui-monospace,SFMono-Regular,SF Mono,Consolas,Liberation Mono,Menlo,monospace",
-          }}
-        />
+  format?: (value: string) => string;
+}) => {
+  const { format } = props;
+  return (
+    <div
+      style={{
+        display: "grid",
+        gridTemplateRows: "auto 1fr",
+        gap: 8,
+      }}
+    >
+      <div
+        style={{
+          display: "grid",
+          gridAutoFlow: "column",
+          alignItems: "end",
+          gap: 4,
+          height: 40,
+        }}
+      >
+        <div className="title">{props.title}</div>
+        {format && (
+          <button
+            style={{
+              color: "black",
+              backgroundColor: "lightblue",
+              fontWeight: "bold",
+              width: 200,
+              justifySelf: "end",
+            }}
+            onClick={() => props.onChange(format(props.value))}
+          >
+            Format
+          </button>
+        )}
+      </div>
+      <div style={{ display: "grid", overflow: "auto" }}>
+        <div style={{ display: "grid" }}>
+          <CodeEditor
+            value={props.value}
+            language={props.language}
+            onChange={(event) => props.onChange(event.target.value)}
+            padding={16}
+            style={{
+              width: "100%",
+              backgroundColor: "#f5f5f5",
+              fontSize: 16,
+              fontFamily:
+                "ui-monospace,SFMono-Regular,SF Mono,Consolas,Liberation Mono,Menlo,monospace",
+            }}
+          />
+        </div>
       </div>
     </div>
-  </div>
-);
+  );
+};

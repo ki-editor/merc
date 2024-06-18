@@ -211,6 +211,8 @@ error: Last Array Element Not Found
 fn format_marc_1() {
     let input = r#"
 # Map
+
+# Yes
 .materials{metal}.reflectivity = 1.0
 .materials{"plastic"}.reflectivity = 0.5
 .materials{metal}.metallic = true
@@ -248,6 +250,7 @@ They are found on Earth.
 .materials{metal}.metallic = true
 
 # Map
+# Yes
 .materials{metal}.reflectivity = 1.0
 .materials{plastic}.conductivity = null
 .materials{plastic}.reflectivity = 0.5

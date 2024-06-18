@@ -17,17 +17,19 @@ pub(crate) fn parse(input: &str) -> Result<Parsed, Box<Error<Rule>>> {
         .filter_map(|pair| match pair.as_rule() {
             Rule::entry => {
                 let mut inner_rules = pair.into_inner();
-                let first_token = inner_rules.next().unwrap();
-                let (comment, next_token) = if first_token.as_rule() == Rule::comment {
-                    (
-                        Some(first_token.as_str().to_string()),
-                        inner_rules.next().unwrap(),
+                let comment = inner_rules.next().unwrap().as_str().trim();
+                let comment = if !comment.is_empty() {
+                    Some(
+                        comment
+                            .lines()
+                            .filter(|line| !line.trim().is_empty())
+                            .join("\n"),
                     )
                 } else {
-                    (None, first_token)
+                    None
                 };
                 let accesses = {
-                    let mut inner = next_token.into_inner();
+                    let mut inner = inner_rules.next().unwrap().into_inner();
 
                     let next = inner.next().unwrap();
                     let access_head = parse_access(next);

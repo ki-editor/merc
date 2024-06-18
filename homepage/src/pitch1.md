@@ -21,7 +21,9 @@ In MARC, the path of every value is explicitly written down, redundantly.
 
 # Array of objects
 .jobs[i].name = "build"
-.jobs[ ].only = "main" # Use `[ ]` to set value to the last array element
+
+# Use `[ ]` to set value to the last array element
+.jobs[ ].only = "main"
 ```
 
 ---
