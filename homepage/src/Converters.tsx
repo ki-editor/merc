@@ -25,13 +25,13 @@ export function Converters() {
       }
     };
   };
-  const updateMarc = (marc: string) => {
+  const updateMarc = React.useCallback((marc: string) => {
     setMarc(marc);
     const json = stringifyError(marc_to_json_string)(marc);
     setJson(json);
     setYaml(stringifyError(json_to_yaml_string)(json));
     setToml(stringifyError(json_to_toml_string)(json));
-  };
+  }, []);
   React.useEffect(() => {
     updateMarc(
       `
@@ -57,7 +57,7 @@ They are found on Earth.
 
 `.trim()
     );
-  }, []);
+  }, [updateMarc]);
   const updateJson = (json: string) => {
     setJson(json);
     setMarc(stringifyError(json_to_marc_string)(json));

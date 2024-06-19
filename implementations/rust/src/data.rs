@@ -51,7 +51,7 @@ impl ValueKind {
             ValueKind::MapLike(MapLike {
                 kind: MapKind::Map, ..
             }) => Type::Map,
-            ValueKind::Scalar { comment, kind } => match kind {
+            ValueKind::Scalar { kind, .. } => match kind {
                 ValueScalarKind::String(_) => Type::String,
                 ValueScalarKind::Integer(_) => Type::Integer,
                 ValueScalarKind::Decimal(_) => Type::Decimal,
@@ -129,8 +129,8 @@ impl ValueKind {
                                 .trim_matches('"')
                                 .to_string()
                         }
-                        let s = if s.contains("\n") {
-                            let s = s.lines().into_iter().map(serialize_string).join("\n");
+                        let s = if s.contains('\n') {
+                            let s = s.lines().map(serialize_string).join("\n");
                             format!("\"\"\"\n{}\n\"\"\"", s)
                         } else {
                             let s = serialize_string(s);
@@ -525,7 +525,11 @@ impl EvaluateError {
             ]
             .into_iter()
             .collect_vec(),
-            EvaluateError::StringUnescapeError { span, error } => todo!(),
+            EvaluateError::StringUnescapeError { span, error } => {
+                [Level::Error.span(span.byte_range()).label(error)]
+                    .into_iter()
+                    .collect_vec()
+            }
         }
     }
 
@@ -551,7 +555,7 @@ pub(crate) enum EvaluateError {
     },
     StringUnescapeError {
         span: Span,
-        error: unescaper::Error,
+        error: String,
     },
 }
 #[derive(Debug)]
@@ -606,7 +610,6 @@ pub(crate) enum Type {
     Decimal,
     Null,
     Boolean,
-    Uninitialized,
 }
 impl Type {
     fn display(&self) -> &'static str {
@@ -620,7 +623,6 @@ impl Type {
             Type::Decimal => "Decimal",
             Type::Null => "Null",
             Type::Boolean => "Boolean",
-            Type::Uninitialized => "Uninitialized",
         }
     }
 }
@@ -643,7 +645,7 @@ fn evaluate_value(
             ValueScalarKind::String(unescaper::unescape(&string).map_err(|error| {
                 EvaluateError::StringUnescapeError {
                     span: value.span.clone(),
-                    error,
+                    error: error.to_string(),
                 }
             })?)
         }

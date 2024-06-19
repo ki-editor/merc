@@ -1,5 +1,5 @@
 use data::evaluate;
-use parser::{parse, Rule};
+use parser::Rule;
 use wasm_bindgen::prelude::*;
 
 mod data;
@@ -129,7 +129,7 @@ mod test_lib {
 pub fn format_marc(marc: &str) -> Result<String, String> {
     fn format_marc(marc: &str) -> Result<String, Error> {
         let parsed = parser::parse(marc).map_err(Error::ParseError)?;
-        parsed.to_string()
+        parsed.into_string()
     }
     format_marc(marc).map_err(|err| err.display(marc))
 }

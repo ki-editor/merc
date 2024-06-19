@@ -69,7 +69,7 @@ impl Parsed {
             .collect_vec()
     }
 
-    pub(crate) fn to_string(self) -> Result<String, crate::Error> {
+    pub(crate) fn into_string(self) -> Result<String, crate::Error> {
         let marc_value = crate::data::evaluate(self)
             .map_err(|error| crate::Error::EvaluationError(Box::new(error)))?;
         Ok(marc_value.print())

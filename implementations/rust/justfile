@@ -1,5 +1,5 @@
 default:
-    @just fmt-check build clippy test
+    @just fmt-check build clippy test build-wasm
     
 install:
     cargo install --locked --path .

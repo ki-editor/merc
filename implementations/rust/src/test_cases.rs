@@ -266,7 +266,7 @@ They are found on Earth.
         format_marc(
             &parse(&format_marc(input).unwrap())
                 .unwrap()
-                .to_string()
+                .into_string()
                 .unwrap()
         )
         .unwrap(),
