@@ -32,7 +32,11 @@ In MARC, the path of every value is explicitly written down, redundantly.
 
 ## 1. Simplified Copy-Paste Operations
 
-Consider the following YAML snippet from the GitHub Actions documentation:
+Integrating new snippets into configuration files is a common task that can be surprisingly complex. This complexity arises not from the format itself, whether YAML, JSON, or another, but from the need to maintain the logical structure and relationships within the configuration.
+
+To correctly incorporate new content, you must perform a **merge**. Merging is the process of combining two sets of data—your existing configuration and the new snippet—into a cohesive whole. This often involves manually aligning indentation levels, resolving conflicts between keys, and ensuring that lists are properly extended rather than overwritten.
+
+Consider this snippet intended for addition to an existing configuration:
 
 ```yaml
 on:
@@ -41,11 +45,9 @@ on:
       - "**.js"
 ```
 
-Directly copying and pasting this snippet into an existing GitHub Actions configuration file won't work as expected.
+You might think you can copy and paste the entire snippet as is. However, if your configuration already contains related properties or nested elements, you must integrate only the relevant parts to maintain the integrity of your file.
 
-Instead of a simple paste, you're required to perform a **merge**—a process that's both tedious and prone to errors, especially as the length of the configuration grows.
-
-In this scenario, you should only copy `paths:\n      - '**.js'` and insert it under the `push` field, not the entire snippet.
+Here's an example of an existing configuration where you would need to carefully insert the new `paths` property:
 
 ```yaml
 on:
@@ -61,11 +63,15 @@ on:
       - v1.*
 ```
 
-If GitHub Actions configurations were authored in MARC, the documentation example would be transformed into the following format, making copy-pasting effortless because **no merging is necessary**:
+In this case, you should only copy `paths:\n      - '**.js'` and place it under the `push` field.
+
+MARC eliminates this complexity by using a path-value syntax that allows for direct insertion without concern for structural conflicts:
 
 ```bash
 on.push.paths[i] = "**.js"
 ```
+
+With MARC, you can effortlessly copy and paste without needing to merge—**no complex integration required**. This simplicity minimizes errors and streamlines configuration updates.
 
 ## 2. Streamlined Change Review
 
@@ -93,7 +99,61 @@ When attempting to comprehend a configuration file, it’s often necessary to me
 
 Creating configurations in MARC conserves cognitive energy for troubleshooting real issues, eliminating any uncertainty about the accuracy of your interpretation.
 
-## 4. Semantic Clarity
+## 4. Natural Documentation
+
+Documenting configuration schemas in hierarchical formats like JSON or YAML often lacks clarity and can be unintuitive. Ironically, most existing configuration documentations gravitate towards a MARC-like syntax for maximum clarity, as seen in these examples:
+
+| Documentation                                                                                                           | MARC-like Syntax Example           |
+| ----------------------------------------------------------------------------------------------------------------------- | ---------------------------------- |
+| [Gitlab CI/CD Yaml](https://docs.gitlab.com/ee/ci/yaml)                                                                 | `cache:key:files`                  |
+| [Github Actions Workflow Syntax](https://docs.github.com/en/actions/using-workflows/workflow-syntax-for-github-actions) | `jobs.<job_id>.defaults.run.shell` |
+
+This MARC-like syntax, while clear, often differs significantly from the actual configuration format, creating a disconnect that readers must bridge to fully grasp the function of each property. Additionally, documentation writers must invest considerable time and effort to create and maintain this pseudo MARC-like syntax, which is not required in the actual configuration files.
+
+MARC, on the other hand, eliminates this disparity and extra effort. The syntax used in documentation is identical to that used in actual configurations—what you see is what you get. This one-to-one correspondence between documentation and implementation simplifies understanding and reduces the cognitive load.
+
+## 5. Straightforward Communication
+
+Navigating configuration errors in hierarchical formats can be as perplexing as giving directions in a labyrinth. It often involves convoluted explanations akin to guiding a tourist through a maze of streets: _"Proceed straight, then take a left at the souvenir shop, followed by a right turn…"_
+
+In contrast, MARC’s simplicity turns these complex instructions into straightforward directions. It’s like pointing directly to the destination and saying, _"The restroom is right there."_
+
+For example, [this StackOverflow answer](https://stackoverflow.com/a/7736755/6587634) (slightly modified) looks like this:
+
+> I solved my problem with this.
+>
+> ```xml
+> <httpErrors errorMode="Custom">
+>   <remove statusCode="404" subStatusCode='-1' />
+> </httpErrors>
+> ```
+>
+> This needs to go in Web.config, under `<configuration>`, then `<system.webServer>`:
+>
+> e.g.
+>
+> ```xml
+> <configuration>
+>     <system.webServer>
+>         <httpErrors ...>
+>             // define errors in here ...
+>         </httpErrors>
+>     </system.webServer>
+> </configuration>
+> ```
+
+If the configuration was in MARC instead of XML, the answer would look like this, without the navigational instructions:
+
+> I solved my problem by adding the following lines:
+>
+> ```python
+> configuration.system.webServer.httpErrors.remove[i].statusCode = 404
+> configuration.system.webServer.httpErrors.remove[ ].subStatusCode = -1
+> ```
+
+The same goes for communicating modifications or deletions of existing values in the configuration file.
+
+## 6. Semantic Clarity
 
 In contrast to many common configuration formats, MARC clearly differentiates between Objects and Maps in its syntax.
 
@@ -141,7 +201,9 @@ MARC eliminates such ambiguities:
 .targetDefaults.{test}.outputs[i] = "{workspaceRoot}/coverage/{projectRoot}"
 ```
 
-With MARC, every element’s role is transparent. User-defined properties are clearly marked, eliminating any guesswork and streamlining both documentation and maintenance processes.
+In this representation, the use of map accessor (`{}`) for `build` and `test`
+unequivocally designates them as user-defined entities, as opposed to other
+properties that are consistent with the schema's definitions.
 
 # Playground
 

@@ -34,7 +34,7 @@ Entries are written in the format `path = value`. The file can contain any numbe
 
 Paths can include any combination of object access, map access, array access, and tuple access. The type of the first access determines the root value type.
 
-- **Object Access**: `.objectName`
+- **Object Access**: `.objectKey`
 - **Map Access**: `{mapKey}`
 - **Array Access**:
   - `[i]` specifically denotes a new element in an array and must use the key `i`.
@@ -43,11 +43,11 @@ Paths can include any combination of object access, map access, array access, an
   - `(i)` specifically denotes a new element in a tuple and must use the key `i`.
   - `( )` denotes the last element in the tuple.
 
-## Identifiers
+## Keys
 
-Identifiers are alphanumeric and can include underscores (`_`) and dashes (`-`). Quoted identifiers are also supported to allow for special characters.
+Keys are alphanumeric and can include underscores (`_`) and dashes (`-`). Quoted keys are also supported to allow for special characters.
 
-Example of valid identifiers:
+Example of valid keys:
 
 ```bash
 "hello world"
@@ -137,6 +137,31 @@ The following example is erroneous because `.x` is not initialized with an eleme
 ```
 
 To fix this, replace `[ ]` with `[i]`.
+
+## 5. Entry order
+
+Entry order is only important for array elements, any other entries can be freely ordered.
+To demonstrate, both of the examples below are semantically equivalent:
+
+```python
+.foo[i].x = 1
+.comment = "Hello"
+
+.foo[ ].y = 2
+
+
+.foo[i].x = 3
+.foo[ ].y = 4
+```
+
+```python
+.comment = "Hello"
+.foo[i].y = 2
+.foo[ ].x = 1
+
+.foo[i].y = 4
+.foo[ ].x = 3
+```
 
 # Specification (Formatter)
 
@@ -330,3 +355,10 @@ Each entry should not contain any leading or trailing whitespaces.
   ```python
      .baz = "spam"
   ```
+
+# Specification (Metadata)
+
+| Aspect         | Value              |
+| -------------- | ------------------ |
+| File Extension | `.marc`            |
+| MIME type      | `application/marc` |
