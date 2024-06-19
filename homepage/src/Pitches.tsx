@@ -1,5 +1,5 @@
-import * as React from "react";
 import "./Pitches.css";
+import { omit } from "ramda";
 import Markdown from "react-markdown";
 import pitch1 from "./pitch1.md?raw";
 import pitch2 from "./pitch2.md?raw";
@@ -23,7 +23,10 @@ export function RenderMarkdown(props: { markdown: string }) {
         remarkPlugins={[remarkGfm]}
         components={{
           code(props) {
-            const { children, className, node, style, ref, ...rest } = props;
+            const { children, className, node, ...rest } = omit(
+              ["style", "ref"],
+              props
+            );
             const match = /language-(\w+)/.exec(className || "");
             return match ? (
               <SyntaxHighlighter
