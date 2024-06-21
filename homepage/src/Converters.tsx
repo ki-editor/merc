@@ -1,18 +1,18 @@
 import CodeEditor from "@uiw/react-textarea-code-editor";
 
 import {
-  marc_to_json_string,
-  json_to_marc_string,
+  merc_to_json_string,
+  json_to_merc_string,
   json_to_yaml_string,
   json_to_toml_string,
   yaml_to_json_string,
   toml_to_json_string,
-  format_marc,
-} from "marc";
+  format_merc,
+} from "merc";
 import React from "react";
 
 export function Converters() {
-  const [marc, setMarc] = React.useState("");
+  const [merc, setMerc] = React.useState("");
   const [json, setJson] = React.useState("");
   const [yaml, setYaml] = React.useState("");
   const [toml, setToml] = React.useState("");
@@ -25,15 +25,15 @@ export function Converters() {
       }
     };
   };
-  const updateMarc = React.useCallback((marc: string) => {
-    setMarc(marc);
-    const json = stringifyError(marc_to_json_string)(marc);
+  const updateMerc = React.useCallback((merc: string) => {
+    setMerc(merc);
+    const json = stringifyError(merc_to_json_string)(merc);
     setJson(json);
     setYaml(stringifyError(json_to_yaml_string)(json));
     setToml(stringifyError(json_to_toml_string)(json));
   }, []);
   React.useEffect(() => {
-    updateMarc(
+    updateMerc(
       `
 # Map
 .materials{"Infinity stones"}."soul affinity" = "fire"
@@ -57,10 +57,10 @@ They are found on Earth.
 
 `.trim()
     );
-  }, [updateMarc]);
+  }, [updateMerc]);
   const updateJson = (json: string) => {
     setJson(json);
-    setMarc(stringifyError(json_to_marc_string)(json));
+    setMerc(stringifyError(json_to_merc_string)(json));
     setYaml(stringifyError(json_to_yaml_string)(json));
     setToml(stringifyError(json_to_toml_string)(json));
   };
@@ -68,14 +68,14 @@ They are found on Earth.
     setYaml(yaml);
     const json = stringifyError(yaml_to_json_string)(yaml);
     setJson(json);
-    setMarc(stringifyError(json_to_marc_string)(json));
+    setMerc(stringifyError(json_to_merc_string)(json));
     setToml(stringifyError(json_to_toml_string)(json));
   };
   const updateToml = (toml: string) => {
     setToml(toml);
     const json = stringifyError(toml_to_json_string)(toml);
     setJson(json);
-    setMarc(stringifyError(json_to_marc_string)(json));
+    setMerc(stringifyError(json_to_merc_string)(json));
     setYaml(stringifyError(json_to_yaml_string)(json));
   };
   return (
@@ -89,11 +89,11 @@ They are found on Earth.
         }}
       >
         <Editor
-          title="MARC"
-          value={marc}
+          title="MERC"
+          value={merc}
           language="python"
-          onChange={updateMarc}
-          format={format_marc}
+          onChange={updateMerc}
+          format={format_merc}
         />
         <Editor
           title="JSON"

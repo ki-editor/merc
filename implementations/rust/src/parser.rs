@@ -7,11 +7,11 @@ use rust_decimal::Decimal;
 use crate::data::Identifier;
 
 #[derive(Parser)]
-#[grammar = "marc.pest"]
-pub(crate) struct MarcParser;
+#[grammar = "merc.pest"]
+pub(crate) struct MercParser;
 
 pub(crate) fn parse(input: &str) -> Result<Parsed, Box<Error<Rule>>> {
-    let file = MarcParser::parse(Rule::file, input)?.next().unwrap();
+    let file = MercParser::parse(Rule::file, input)?.next().unwrap();
     let statements = file
         .into_inner()
         .filter_map(|pair| match pair.as_rule() {
@@ -70,9 +70,9 @@ impl Parsed {
     }
 
     pub(crate) fn into_string(self) -> Result<String, crate::Error> {
-        let marc_value = crate::data::evaluate(self)
+        let merc_value = crate::data::evaluate(self)
             .map_err(|error| crate::Error::EvaluationError(Box::new(error)))?;
-        Ok(marc_value.print())
+        Ok(merc_value.print())
     }
 }
 

@@ -1,6 +1,6 @@
-# A taste of MARC
+# A taste of MERC
 
-In MARC, the path of every value is explicitly written down, redundantly.
+In MERC, the path of every value is explicitly written down, redundantly.
 
 ```bash
 # Object
@@ -28,9 +28,9 @@ In MARC, the path of every value is explicitly written down, redundantly.
 
 ---
 
-# Why MARC?
+# Why MERC?
 
-## 1. Simplified Copy-Paste Operations
+## 1. Fearless Copy-Paste
 
 Integrating new snippets into configuration files is a common task that can be surprisingly complex. This complexity arises not from the format itself, whether YAML, JSON, or another, but from the need to maintain the logical structure and relationships within the configuration.
 
@@ -65,13 +65,13 @@ on:
 
 In this case, you should only copy `paths:\n      - '**.js'` and place it under the `push` field.
 
-MARC eliminates this complexity by using a path-value syntax that allows for direct insertion without concern for structural conflicts:
+MERC eliminates this complexity by using a path-value syntax that allows for direct insertion without concern for structural conflicts:
 
 ```bash
 on.push.paths[i] = "**.js"
 ```
 
-With MARC, you can effortlessly copy and paste without needing to merge—**no complex integration required**. This simplicity minimizes errors and streamlines configuration updates.
+With MERC, you can effortlessly copy and paste without needing to merge—**no complex integration required**. This simplicity minimizes errors and streamlines configuration updates.
 
 ## 2. Streamlined Change Review
 
@@ -84,7 +84,7 @@ The challenge of reviewing changes is amplified with large configuration files. 
     "securityGroup": "internal"
 ```
 
-MARC simplifies this process. Changes are immediately apparent, eliminating any guesswork:
+MERC simplifies this process. Changes are immediately apparent, eliminating any guesswork:
 
 ```diff
     machines{api}.type = "spot"
@@ -95,28 +95,28 @@ MARC simplifies this process. Changes are immediately apparent, eliminating any 
 
 ## 3. Easily Decipherable
 
-When attempting to comprehend a configuration file, it’s often necessary to mentally decode it into a format akin to MARC to fully understand its structure.
+When attempting to comprehend a configuration file, it’s often necessary to mentally decode it into a format akin to MERC to fully understand its structure.
 
-Creating configurations in MARC conserves cognitive energy for troubleshooting real issues, eliminating any uncertainty about the accuracy of your interpretation.
+Creating configurations in MERC conserves cognitive energy for troubleshooting real issues, eliminating any uncertainty about the accuracy of your interpretation.
 
 ## 4. Natural Documentation
 
-Documenting configuration schemas in hierarchical formats like JSON or YAML often lacks clarity and can be unintuitive. Ironically, most existing configuration documentations gravitate towards a MARC-like syntax for maximum clarity, as seen in these examples:
+Documenting configuration schemas in hierarchical formats like JSON or YAML often lacks clarity and can be unintuitive. Ironically, most existing configuration documentations gravitate towards a MERC-like syntax for maximum clarity, as seen in these examples:
 
-| Documentation                                                                                                           | MARC-like Syntax Example           |
+| Documentation                                                                                                           | MERC-like Syntax Example           |
 | ----------------------------------------------------------------------------------------------------------------------- | ---------------------------------- |
 | [Gitlab CI/CD Yaml](https://docs.gitlab.com/ee/ci/yaml)                                                                 | `cache:key:files`                  |
 | [Github Actions Workflow Syntax](https://docs.github.com/en/actions/using-workflows/workflow-syntax-for-github-actions) | `jobs.<job_id>.defaults.run.shell` |
 
-This MARC-like syntax, while clear, often differs significantly from the actual configuration format, creating a disconnect that readers must bridge to fully grasp the function of each property. Additionally, documentation writers must invest considerable time and effort to create and maintain this pseudo MARC-like syntax, which is not required in the actual configuration files.
+This MERC-like syntax, while clear, often differs significantly from the actual configuration format, creating a disconnect that readers must bridge to fully grasp the function of each property. Additionally, documentation writers must invest considerable time and effort to create and maintain this pseudo MERC-like syntax, which is not required in the actual configuration files.
 
-MARC, on the other hand, eliminates this disparity and extra effort. The syntax used in documentation is identical to that used in actual configurations—what you see is what you get. This one-to-one correspondence between documentation and implementation simplifies understanding and reduces the cognitive load.
+MERC, on the other hand, eliminates this disparity and extra effort. The syntax used in documentation is identical to that used in actual configurations—what you see is what you get. This one-to-one correspondence between documentation and implementation simplifies understanding and reduces the cognitive load.
 
 ## 5. Straightforward Communication
 
 Navigating configuration errors in hierarchical formats can be as perplexing as giving directions in a labyrinth. It often involves convoluted explanations akin to guiding a tourist through a maze of streets: _"Proceed straight, then take a left at the souvenir shop, followed by a right turn…"_
 
-In contrast, MARC’s simplicity turns these complex instructions into straightforward directions. It’s like pointing directly to the destination and saying, _"The restroom is right there."_
+In contrast, MERC’s simplicity turns these complex instructions into straightforward directions. It’s like pointing directly to the destination and saying, _"The restroom is right there."_
 
 For example, [this StackOverflow answer](https://stackoverflow.com/a/7736755/6587634) (slightly modified) looks like this:
 
@@ -142,7 +142,7 @@ For example, [this StackOverflow answer](https://stackoverflow.com/a/7736755/658
 > </configuration>
 > ```
 
-If the configuration was in MARC instead of XML, the answer would look like this, without the navigational instructions:
+If the configuration was in MERC instead of XML, the answer would look like this, without the navigational instructions:
 
 > I solved my problem by adding the following lines:
 >
@@ -155,7 +155,7 @@ The same goes for communicating modifications or deletions of existing values in
 
 ## 6. Semantic Clarity
 
-In contrast to many common configuration formats, MARC clearly differentiates between Objects and Maps in its syntax.
+In contrast to many common configuration formats, MERC clearly differentiates between Objects and Maps in its syntax.
 
 This distinction may seem subtle, but it becomes incredibly valuable in large configuration files. It provides clarity and assurance, allowing you to immediately recognize which properties are defined by the user and which are dictated by the schema.
 
@@ -185,7 +185,7 @@ For example, consider the following Nx.json config:
 In this snippet, it’s ambiguous whether `build` or `test` are defined by the user or are part of the predefined schema.
 Similarly, `options.main` could raise questions about its origin.
 
-MARC eliminates such ambiguities:
+MERC eliminates such ambiguities:
 
 ```python
 .targetDefaults.{build}.cache = true
@@ -207,5 +207,5 @@ properties that are consistent with the schema's definitions.
 
 # Playground
 
-Discover the functionality of MARC with the following 4-way converter.  
-Edit any format—MARC, JSON, YAML, or TOML—and see immediate updates in the others.
+Discover the functionality of MERC with the following 4-way converter.  
+Edit any format—MERC, JSON, YAML, or TOML—and see immediate updates in the others.

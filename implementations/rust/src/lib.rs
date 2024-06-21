@@ -15,26 +15,26 @@ pub(crate) enum Error {
 }
 
 #[wasm_bindgen]
-pub fn marc_to_json_string(marc: &str) -> Result<String, String> {
-    marc_to_json(marc)
-        .map_err(|err| err.display(marc))
+pub fn merc_to_json_string(merc: &str) -> Result<String, String> {
+    merc_to_json(merc)
+        .map_err(|err| err.display(merc))
         .and_then(|json| serde_json::to_string_pretty(&json).map_err(|err| err.to_string()))
 }
 
-fn marc_to_json(marc: &str) -> Result<serde_json::Value, Error> {
-    let parsed = parser::parse(marc).map_err(Error::ParseError)?;
-    let marc_value = evaluate(parsed).map_err(|error| Error::EvaluationError(Box::new(error)))?;
-    Ok(marc_value.into_json())
+fn merc_to_json(merc: &str) -> Result<serde_json::Value, Error> {
+    let parsed = parser::parse(merc).map_err(Error::ParseError)?;
+    let merc_value = evaluate(parsed).map_err(|error| Error::EvaluationError(Box::new(error)))?;
+    Ok(merc_value.into_json())
 }
 
 #[wasm_bindgen]
-pub fn json_to_marc_string(json: &str) -> Result<String, String> {
-    json_to_marc(json)
-        .map(|marc| marc.print())
+pub fn json_to_merc_string(json: &str) -> Result<String, String> {
+    json_to_merc(json)
+        .map(|merc| merc.print())
         .map_err(|err| err.to_string())
 }
 
-fn json_to_marc(json: &str) -> anyhow::Result<data::Value> {
+fn json_to_merc(json: &str) -> anyhow::Result<data::Value> {
     let parsed = serde_json::from_str(json)?;
     Ok(data::Value::from_json(parsed))
 }
@@ -126,10 +126,10 @@ mod test_lib {
 }
 
 #[wasm_bindgen]
-pub fn format_marc(marc: &str) -> Result<String, String> {
-    fn format_marc(marc: &str) -> Result<String, Error> {
-        let parsed = parser::parse(marc).map_err(Error::ParseError)?;
+pub fn format_merc(merc: &str) -> Result<String, String> {
+    fn format_merc(merc: &str) -> Result<String, Error> {
+        let parsed = parser::parse(merc).map_err(Error::ParseError)?;
         parsed.into_string()
     }
-    format_marc(marc).map_err(|err| err.display(marc))
+    format_merc(merc).map_err(|err| err.display(merc))
 }

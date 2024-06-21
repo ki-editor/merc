@@ -1,7 +1,7 @@
-use crate::{format_marc, json_to_marc_string, marc_to_json, marc_to_json_string, parser::parse};
+use crate::{format_merc, json_to_merc_string, merc_to_json, merc_to_json_string, parser::parse};
 
 #[test]
-fn marc_to_json_1() {
+fn merc_to_json_1() {
     let input = r#"
 # Map
 .materials{metal}.reflectivity = 1.0
@@ -38,13 +38,13 @@ They are found on Earth.
       "description": "These are common materials.\nThey are found on Earth."
     });
     let actual: serde_json::Value =
-        serde_json::from_str(&marc_to_json_string(input).unwrap()).unwrap();
+        serde_json::from_str(&merc_to_json_string(input).unwrap()).unwrap();
     pretty_assertions::assert_eq!(actual, expected_json)
 }
 
 #[test]
-fn json_to_marc_1() {
-    let expected_marc = r#"
+fn json_to_merc_1() {
+    let expected_merc = r#"
 .description = """
 These are common materials.
 They are found on Earth.
@@ -70,7 +70,7 @@ They are found on Earth.
       ],
       "description": "These are common materials.\nThey are found on Earth."
     }"#;
-    pretty_assertions::assert_eq!(json_to_marc_string(input).unwrap(), expected_marc)
+    pretty_assertions::assert_eq!(json_to_merc_string(input).unwrap(), expected_merc)
 }
 
 #[test]
@@ -80,7 +80,7 @@ fn top_level_object_1() {
 "#
     .trim();
     let expected_json = serde_json::json!({"a":{"b":{"c":123}}});
-    pretty_assertions::assert_eq!(marc_to_json(input).unwrap(), expected_json)
+    pretty_assertions::assert_eq!(merc_to_json(input).unwrap(), expected_json)
 }
 
 #[test]
@@ -90,7 +90,7 @@ fn top_level_map_1() {
 "#
     .trim();
     let expected_json = serde_json::json!({"a":{"b":{"c":123}}});
-    pretty_assertions::assert_eq!(marc_to_json(input).unwrap(), expected_json)
+    pretty_assertions::assert_eq!(merc_to_json(input).unwrap(), expected_json)
 }
 
 #[test]
@@ -104,7 +104,7 @@ fn top_level_array_1() {
 "#
     .trim();
     let expected_json = serde_json::json!([[[1, 2], [3, 4]], [[5]]]);
-    pretty_assertions::assert_eq!(marc_to_json(input).unwrap(), expected_json)
+    pretty_assertions::assert_eq!(merc_to_json(input).unwrap(), expected_json)
 }
 
 #[test]
@@ -118,7 +118,7 @@ fn top_level_tuple_1() {
 "#
     .trim();
     let expected_json = serde_json::json!([[[1, 2], [3, 4]], [[5]]]);
-    pretty_assertions::assert_eq!(marc_to_json(input).unwrap(), expected_json)
+    pretty_assertions::assert_eq!(merc_to_json(input).unwrap(), expected_json)
 }
 
 #[test]
@@ -128,7 +128,7 @@ fn escaped_string() {
 "#
     .trim();
     let expected_json: serde_json::Value = serde_json::from_str(r#"{"x": "\"hello\n\""}"#).unwrap();
-    pretty_assertions::assert_eq!(marc_to_json(input).unwrap(), expected_json)
+    pretty_assertions::assert_eq!(merc_to_json(input).unwrap(), expected_json)
 }
 
 #[test]
@@ -137,7 +137,7 @@ fn parse_error_1() {
 .x.y 1
 "#
     .trim();
-    pretty_assertions::assert_eq!(marc_to_json_string(input).err().unwrap(), " --> 1:6
+    pretty_assertions::assert_eq!(merc_to_json_string(input).err().unwrap(), " --> 1:6
   |
 1 | .x.y 1
   |      ^---
@@ -153,7 +153,7 @@ fn error_duplicate_assignment_1() {
 "#
     .trim();
     pretty_assertions::assert_eq!(
-        marc_to_json_string(input).err().unwrap(),
+        merc_to_json_string(input).err().unwrap(),
         "
 error: Duplicate Assignment
   |
@@ -174,7 +174,7 @@ fn error_type_mismatch_1() {
 "#
     .trim();
     pretty_assertions::assert_eq!(
-        marc_to_json_string(input).err().unwrap(),
+        merc_to_json_string(input).err().unwrap(),
         "
 error: Type Mismatch
   |
@@ -194,7 +194,7 @@ fn error_last_array_element_not_found_1() {
 "#
     .trim();
     pretty_assertions::assert_eq!(
-        marc_to_json_string(input).err().unwrap(),
+        merc_to_json_string(input).err().unwrap(),
         "
 error: Last Array Element Not Found
   |
@@ -208,7 +208,7 @@ error: Last Array Element Not Found
 }
 
 #[test]
-fn format_marc_1() {
+fn format_merc_1() {
     let input = r#"
 # Map
 
@@ -256,20 +256,20 @@ They are found on Earth.
 .materials{plastic}.reflectivity = 0.5
 "#
     .trim();
-    let actual = format_marc(input).unwrap();
+    let actual = format_merc(input).unwrap();
 
     pretty_assertions::assert_eq!(actual, expected);
 
     // Test reciprocity:
-    // format(parse(format(marc))) === format(marc)
+    // format(parse(format(merc))) === format(merc)
     assert_eq!(
-        format_marc(
-            &parse(&format_marc(input).unwrap())
+        format_merc(
+            &parse(&format_merc(input).unwrap())
                 .unwrap()
                 .into_string()
                 .unwrap()
         )
         .unwrap(),
-        format_marc(input).unwrap()
+        format_merc(input).unwrap()
     )
 }

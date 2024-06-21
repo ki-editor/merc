@@ -1,5 +1,6 @@
 [package]
-name = "marc"
+name = "merc"
+description = "The MErcilessly Redundant Config language"
 version = "0.1.0"
 edition = "2021"
 
@@ -13,13 +14,15 @@ itertools = "0.13.0"
 nonempty = "0.10.0"
 pest = "2.7.10"
 pest_derive = "2.7.10"
-pretty_assertions = "1.4.0"
 rust_decimal = "1.35.0"
 serde_json = "1.0.117"
 serde_yaml = "0.9.34"
 toml = "0.8.14"
 unescaper = "0.1.4"
 wasm-bindgen = "0.2.92"
+
+[dev-dependencies]
+pretty_assertions = "1.4.0"
 
 [lib]
 crate-type = ["cdylib"]

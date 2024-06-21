@@ -1,6 +1,6 @@
 # Comparison
 
-| Feature/Format           | MARC | JSON |             YAML              |           TOML            |
+| Feature/Format           | MERC | JSON |             YAML              |           TOML            |
 | ------------------------ | :--: | :--: | :---------------------------: | :-----------------------: |
 | Supports Comments        |  ✅  |  ❌  |              ✅               |            ✅             |
 | Single Representation    |  ✅  |  ✅  | ❌ (Due to Anchors & Aliases) | ❌ (Due to Inline tables) |
@@ -13,17 +13,17 @@
 
 # Specification
 
-For any aspects not explicitly defined within this MARC specification, refer to the [JSON Specification (ECMA-404)](https://ecma-international.org/publications-and-standards/standards/ecma-404/) as the default guideline.
+For any aspects not explicitly defined within this MERC specification, refer to the [JSON Specification (ECMA-404)](https://ecma-international.org/publications-and-standards/standards/ecma-404/) as the default guideline.
 
 # Specification (Syntax)
 
 ## Overview
 
-A MARC configuration file is structured as a list of entries. Each entry represents a configuration directive and is composed of a path and a value.
+A MERC configuration file is structured as a list of entries. Each entry represents a configuration directive and is composed of a path and a value.
 
 ## Entries
 
-Each entry in a MARC file specifies a particular configuration setting. An entry has two components:
+Each entry in a MERC file specifies a particular configuration setting. An entry has two components:
 
 - **Path**: A sequence of accessors that defines where in the configuration hierarchy the value should be placed.
 - **Value**: The actual data or setting that will be applied at the specified path.
@@ -45,7 +45,12 @@ Paths can include any combination of object access, map access, array access, an
 
 ## Keys
 
-Keys are alphanumeric and can include underscores (`_`) and dashes (`-`). Quoted keys are also supported to allow for special characters.
+Keys are used for both the object accessor and the map accessor.
+Keys must be alphanumeric and can include underscores (`_`) and dashes (`-`).
+Quoted keys are also supported to allow for special characters such as whitespaces.
+Note that quoted characters must be ASCII, non-ASCII character should be escaped using the `\u0000` format.
+This is because there is no single acceptable lexicographic ordering exists for Unicode characters.
+Newline should be escaped with `\n`.
 
 Example of valid keys:
 
@@ -78,7 +83,7 @@ Values must be scalar, identical to JSON scalar values, and include strings, boo
 
 ## Whitespace Insensitivity
 
-Whitespace is not sensitive in MARC; entries can be separated by any amount of whitespace. For example:
+Whitespace is not sensitive in MERC; entries can be separated by any amount of whitespace. For example:
 
 ```bash
 .x . y {   z } =    123
@@ -100,7 +105,7 @@ Comments provide context or explanations for an entry and must be placed on thei
 
 ## 1. Root value type is inferred by the first entry
 
-The root value type of a MARC configuration is determined by the first accessor in the first entry. This initial accessor sets the expected type for the root value.
+The root value type of a MERC configuration is determined by the first accessor in the first entry. This initial accessor sets the expected type for the root value.
 
 In the following example, the root value type is inferred as Object because the first entry is `.x`, and `.x. implies the parent value is Object.
 
@@ -108,7 +113,7 @@ In the following example, the root value type is inferred as Object because the 
 .x{y} = 2
 ```
 
-MARC allows any compound type to serve as the root value. This means that configurations can have top-level arrays, maps, and tuples.
+MERC allows any compound type to serve as the root value. This means that configurations can have top-level arrays, maps, and tuples.
 
 ## 2. Duplicated assignment is not allowed
 
@@ -167,7 +172,7 @@ To demonstrate, both of the examples below are semantically equivalent:
 
 ## Formatting Rules
 
-A compliant MARC implementation must incorporate a formatter that adheres to the following rules to ensure consistency and readability:
+A compliant MERC implementation must incorporate a formatter that adheres to the following rules to ensure consistency and readability:
 
 ## 1. **Equal Sign Spacing**
 

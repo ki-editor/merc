@@ -14,10 +14,10 @@ export const Header = () => {
       }}
     >
       <div style={{ color: "#007a80", fontSize: 120, letterSpacing: 32 }}>
-        MARC
+        MERC
       </div>
       <div style={{ fontSize: 36 }}>
-        The MAximally Redundant Config language
+        The MErcilessly Redundant Config language
       </div>
     </div>
   );
