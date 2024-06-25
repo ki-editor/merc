@@ -35,26 +35,35 @@ export function Converters() {
   React.useEffect(() => {
     updateMerc(
       `
-# Map
-.materials{"Infinity stones"}."soul affinity" = "fire"
-.materials{metal}.reflectivity = 1.0
-.materials{metal}.metallic = true
-.materials{plastic}.reflectivity = 0.5
-.materials{plastic}.conductivity = -1
-
-# Array of objects
-.entities[i].material = "metal"
-.entities[ ].name = "hero"
-
-.entities[i].name = "monster"
-.entities[ ].material = "plastic"
+# Object
+.package.name = "merc"
 
 # Multiline string
-.description = """
-These are common materials.
-They are found on Earth.
+.package.description = """
+The Mercileslly Redundant Config language.
+It is very redundant.
 """
 
+# Array of scalars (using implicit keys \`+\`)
+.excludes[+] = "node_modules/"
+.excludes[+] = "dist/"
+.excludes[+] = "target/"
+
+# Array of objects (using explicit keys)
+# These user-defined keys are solely to construct the array
+# They are not consumable by application code
+.entities[hero].material = "metal"
+.entities[hero].name = "hero"
+.entities[monster].material = "plastic"
+.entities[monster].name = "monster"
+
+# Map
+# Map and object are identical implementation-wise
+# But map keys signify the reader that they are user-defined
+# instead of schema-defined
+.dependencies{react}.name = "^0.1.0"
+.dependencies{graphql} = "1.2.3"
+.dependencies{"@types/react-markdown"} = "~0.2.3"
 `.trim()
     );
   }, [updateMerc]);
@@ -84,7 +93,7 @@ They are found on Earth.
         style={{
           display: "grid",
           gridTemplateColumns: "1fr 1fr",
-          gridTemplateRows: "40vh 40vh",
+          gridTemplateRows: "50vh 50vh",
           gap: 16,
         }}
       >
