@@ -208,6 +208,8 @@ The syntax of MERC will be described using ISO-14977 EBNF.
 
 Whitespaces are insignificant in MERC, they can be inserted between any pair of tokens, except for comments, where the newline character serves as the end of a comment.
 
+However, whitespaces within string literals are significant, they should not be trimmed.
+
 For example, the following MERC is valid despite the irregular spacing.
 
 ```bash
@@ -352,7 +354,7 @@ Syntax:
 implicit_array_accessor = "[", "+", "]";
 ```
 
-Example of valid implicit array access (separated by newlines):
+Example of valid implicit array accessor (separated by newlines):
 
 ```python
 [+]
@@ -381,17 +383,18 @@ Example of valid explicit array accessors (separated by newlines):
 
 Values refers to the part that comes after the literal `=` in an entry.
 
+All JSON scalars are valid scalars in MERC, however there are also scalars that are not supported by JSON.
+
 Syntax:
 
 ```ebnf
 value = json_scalar | non_json_scalar;
 json_scalar = json_string | json_number | json_boolean | json_null;
-non_json_scalar = multiline_string;
 ```
 
 ### 1. JSON scalars
 
-JSON scalars has the exact same syntax as those defined in the JSON specification.
+JSON scalars have the exact same syntax as those defined in the JSON specification.
 
 - **Strings**: Enclosed in double quotes.
   - Example: `"Hello, World!"`
@@ -402,50 +405,82 @@ JSON scalars has the exact same syntax as those defined in the JSON specificatio
   - Decimal Example: `3.14`
 - **Null** : `null`
 
-### 2. Non-JSON scalars
+### 2. Non-JSON Scalars
 
-These are scalars that are not present in the JSON specification.
+These are scalars that are not present in the JSON specification; they are additional kinds of string literals.
 
-#### Raw String
+There are four kinds of string literals in MERC, categorized by raw/escaped and singleline/multiline-able:
 
-Raw strings are string where every characters are treated literally, for example, `\n` means two characters, `\` and `n`.
+|                | Escaped | Raw   |
+| -------------- | ------- | ----- |
+| Singleline     | `"`     | `'`   |
+| Multiline-able | `"""`   | `'''` |
 
-There are two kinds of raw strings, one surrounded by one single quote on both end, the other surrounded by three single quotes on both end.
+The table above illustrates which combination of quotes is used to denote each kind of string literal.
+
+- Singleline escaped string is identical to a JSON string.
+- Escaped string follows the escaping rule of a JSON string (e.g., `\n` is interpreted as a newline).
+- For raw strings, their content is not interpreted; it remains verbatim. However, this implies that the content cannot contain the enclosing quote(s). For example, a singleline raw string cannot contain `'`, and a multiline raw string cannot contain `'''`.
+- Multiline-able strings can span either a singleline or multiple lines. If they span multiple lines, the following rules must be obeyed:
+  1. The content must start with a newline and end with a newline.
+  2. The first and last newline should be omitted in the final constructed value.
+
+These rules eliminate interpretation ambiguities commonly present in languages that support multiline strings. For example, the question "Is the first newline trimmed?" is resolved.
+
+Additionally, these rules improve aesthetics by disallowing the following formatting:
+
+```python
+.content = """This is a weirdly formatted piece
+of string
+   """
+```
 
 Syntax:
 
 ```ebnf
-raw_string
-  = "'"  , ? Any unicode character sequence except ' and newline ?, "'"
-  | "'''", ? Any unicode character sequence except ''' ?, "'''";
+non_json_scalar = singleline_raw_string | multiline_raw_string | multiline_escaped_string;
+```
+
+```ebnf
+singleline_raw_string    = "'"  , ? Any Unicode character sequence except ' and newline ?  , "'";
+multiline_raw_string     = "'''", newline, ? Any Unicode character sequence except ''' and newline ?, "'''";
+multiline_escaped_string = '"""', newline, ? Character sequence allowed in a JSON string, including newline ?, newline, '"""';
 ```
 
 Example:
 
 ```python
-# What you see is what you get
+# Raw string: what you see is what you get
 .winpath  = 'C:\Users\nodejs\templates'
 .winpath2 = '\\ServerX\admin$\system32\'
 .quoted   = 'Tom "Dubs" Preston-Werner'
 .regex    = '<\i\c*\s*>'
+
+.multiline-raw-string = '''
+Lorum ipsam
+de marcota
+'''
+
+.multiline-escaped-string = """
+\t means
+tab
+"""
 ```
 
-When there are multiple lines, the characters that appear before the first newline or after the last newline should be trimmed.
-
-For example, the following multiline-string:
+Example of trimming the first and last newline for a multiline string:
 
 ```python
-.x = '''This is trimmed
+.x = '''
 
-Not trimmed
+  foobar
 
-This is also trimmed'''
+'''
 ```
 
-...translates into the following JSON:
+This translates into the following JSON:
 
 ```json
-{ "x": "\nNot trimmed\n" }
+{ "x": "\n  foobar\n" }
 ```
 
 ## Comments
@@ -750,23 +785,37 @@ Separate each entry by exactly one newline character, except for commented entri
   .anotherSetting = "anotherValue"
   ```
 
-## 8. **String Formatting**
+## 8. **Raw String Formatting**
 
-Format strings as raw string whenever possible if the content contains at least one newline character,
-and the content does not contain `'''`.
+Format singleline raw string using 1 single quote instead of 3 single quotes if the content does not contain single quotes.
 
 Example:
 
 - Correct:
   ```python
-  .greeting = '''
-  Hello,
-  World!
-  '''
+  .greeting = 'Hello world!'
   ```
 - Incorrect:
   ```python
-  .greeting = "Hello,\nWorld!"
+  .greeting = '''Hello world!'''
+  ```
+
+## 9. **Multiline String Formatting**
+
+Format singeline escaped string as multiline escaped string if the content contains newline character.
+
+Example:
+
+- Correct:
+  ```python
+  .greeting = """
+  Hello
+  World
+  """
+  ```
+- Incorrect:
+  ```python
+  .greeting = "Hello\nWorld"
   ```
 
 ## 9. **Entry formatting**
@@ -782,6 +831,21 @@ Each entry should not contain any leading or trailing whitespaces.
 - Incorrect:
   ```python
      .baz = "spam"
+  ```
+
+## 10. **Implicit Array Accessor**
+
+Explicit array accessor should be replaced with implicit array accessor if it is the last descendant of a path, and the path value is scalar.
+
+- Correct:
+
+  ```python
+  .x.y[+] = 123
+  ```
+
+- Incorrect:
+  ```python
+  .x.y[zam] = 123
   ```
 
 # Specification (Metadata)
