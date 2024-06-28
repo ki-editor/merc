@@ -95,8 +95,8 @@ pub(crate) struct Entry {
 fn parse_value(pair: Pair<Rule>) -> EntryValue {
     let span = pair.as_span().into();
     let kind = match pair.as_rule() {
-        Rule::string => ValueKind::String(pair.into_inner().next().unwrap().as_str().to_string()),
-        Rule::multiline_string_inner => ValueKind::MultilineString(pair.as_str().to_string()),
+        Rule::string => ValueKind::String(parse_string(pair)),
+
         Rule::number => ValueKind::Decimal(str::parse::<Decimal>(pair.as_str()).unwrap()),
         Rule::integer => ValueKind::Integer(str::parse::<isize>(pair.as_str()).unwrap()),
         Rule::boolean => ValueKind::Boolean(str::parse::<bool>(pair.as_str()).unwrap()),
@@ -108,12 +108,29 @@ fn parse_value(pair: Pair<Rule>) -> EntryValue {
 
 #[derive(Debug)]
 pub(crate) enum ValueKind {
-    String(String),
-    MultilineString(String),
+    String(StringKind),
     Integer(isize),
     Decimal(Decimal),
     Boolean(bool),
     Null,
+}
+
+#[derive(Debug, Clone)]
+pub(crate) enum StringKind {
+    SinglelineRaw(String),
+    MultilineAbleRaw(String),
+    SinglineEscaped(String),
+    MultilineAbleEscaped(String),
+}
+impl StringKind {
+    pub(crate) fn to_string(&self) -> String {
+        match self {
+            StringKind::SinglelineRaw(string)
+            | StringKind::SinglineEscaped(string)
+            | StringKind::MultilineAbleRaw(string)
+            | StringKind::MultilineAbleEscaped(string) => string.clone(),
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -155,18 +172,16 @@ pub(crate) struct Access {
 pub(crate) enum AccessKind {
     ObjectAccess { key: Identifier },
     MapAccess { key: Identifier },
-    ArrayAccessNew,
-    ArrayAccessLast,
-    TupleAccessLast,
-    TupleAccessNew,
+    ArrayAccessImplicit,
+    ArrayAccessExplicit { key: Identifier },
 }
 fn parse_access(pair: Pair<Rule>) -> Access {
     let span: Span = pair.as_span().into();
     let kind = match pair.as_rule() {
-        Rule::array_access_new => AccessKind::ArrayAccessNew,
-        Rule::array_access_last => AccessKind::ArrayAccessLast,
-        Rule::tuple_access_new => AccessKind::TupleAccessNew,
-        Rule::tuple_access_last => AccessKind::TupleAccessLast,
+        Rule::array_access_implicit => AccessKind::ArrayAccessImplicit,
+        Rule::array_access_explicit => AccessKind::ArrayAccessExplicit {
+            key: parse_identifier(pair.into_inner().next().unwrap()),
+        },
         Rule::object_access => AccessKind::ObjectAccess {
             key: parse_identifier(pair.into_inner().next().unwrap()),
         },
@@ -181,7 +196,33 @@ fn parse_access(pair: Pair<Rule>) -> Access {
 fn parse_identifier(pair: Pair<Rule>) -> Identifier {
     match pair.as_rule() {
         Rule::unquoted_identifier => Identifier::Unquoted(pair.as_str().to_string()),
-        Rule::string => Identifier::Quoted(pair.into_inner().next().unwrap().as_str().to_string()),
+        Rule::string => Identifier::Quoted(parse_string(pair)),
         rule => unreachable!("rule = {:?}", rule),
     }
+}
+
+fn parse_string(pair: Pair<Rule>) -> StringKind {
+    let inner = pair.into_inner().next().unwrap();
+    match inner.as_rule() {
+        Rule::singleline_escaped_string => {
+            StringKind::SinglineEscaped(trim_by_count(1, inner.as_str()))
+        }
+        Rule::singleline_raw_string => StringKind::SinglelineRaw(trim_by_count(1, inner.as_str())),
+        Rule::multiline_able_raw_string => {
+            StringKind::MultilineAbleRaw(trim_by_count(3, inner.as_str()))
+        }
+        Rule::multiline_able_escaped_string => {
+            StringKind::MultilineAbleEscaped(trim_by_count(3, inner.as_str()))
+        }
+        rule => unreachable!("rule = {:?}", rule),
+    }
+}
+
+/// Trim the first `count` characters and last `count` characters from the given string
+pub(crate) fn trim_by_count(count: usize, s: &str) -> String {
+    let char_count = s.chars().count();
+    s.chars()
+        .skip(count)
+        .take(char_count.saturating_sub(count * 2))
+        .collect::<String>()
 }

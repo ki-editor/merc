@@ -293,7 +293,7 @@ Unquoted identifiers must consist of only ASCII alphanumeric characters, ASCII d
 
 Also, unlike common programming languages, it is not necessary for a unquoted identifier to start with ASCII alphabets or underscore, it can also begins with dashes or ASCII digits. For instance, `0` and `-im_am_negative` are both valid unquoted identifiers.
 
-Quoted identifier is identical to JSON string, which begins and ends with double quotes (`"`), and the characters in between might contain escaped characters such as `\n` or `\u1234`. For instance, `"I have whitespaces"` is a valid quoted identifier.
+Quoted identifier is identical to string, string will be discussed in a later section.
 
 Syntax:
 
@@ -301,17 +301,7 @@ Syntax:
 identifier = quoted_identifier | unquoted_identifier;
 unquoted_identifier = char, {char};
 char = ASCII_ALPHABETS | ASCII_DIGITS | "-" | "_";
-unquoted_identifier = json_string;
-json_string = '"' ,
-  { ? Any unicode character except " or \ or control character ?
-  | "\" ,
-    ( '"' (* quotation mark *)        | "\" (* reverse solidus *)
-    | "/" (* solidus *)               | "b" (* backspace *)
-    | "f" (* formfeed *)              | "n" (* newline *)
-    | "r" (* carriage return *)       | "t" (* horizontal tab *)
-    | "u" , 4 * ? hexadeximal digit ?
-    )
-  } , '"' ;
+quoted_identifier = string;
 ```
 
 ### 1. Object accessor
@@ -396,16 +386,14 @@ json_scalar = json_string | json_number | json_boolean | json_null;
 
 JSON scalars have the exact same syntax as those defined in the JSON specification.
 
-- **Strings**: Enclosed in double quotes.
-  - Example: `"Hello, World!"`
-  - **Booleans**: `true` or `false`.
+- **Booleans**: `true` or `false`.
   - Example: `true`
 - **Numbers**: Integers or decimals without quotes.
   - Integer Example: `42`
   - Decimal Example: `3.14`
 - **Null** : `null`
 
-### 2. Non-JSON Scalars
+### 2. String
 
 These are scalars that are not present in the JSON specification; they are additional kinds of string literals.
 
@@ -438,18 +426,31 @@ of string
 Syntax:
 
 ```ebnf
-non_json_scalar = singleline_raw_string | multiline_raw_string | multiline_escaped_string;
+string = multiline_raw_string | singleline_raw_string | multiline_escaped_string | singleline_escaped_string;
 ```
 
 ```ebnf
+singleline_escaped_string = '"' ,
+  { ? Any unicode character except " or \ or control character ?
+  | "\" ,
+    ( '"' (* quotation mark *)        | "\" (* reverse solidus *)
+    | "/" (* solidus *)               | "b" (* backspace *)
+    | "f" (* formfeed *)              | "n" (* newline *)
+    | "r" (* carriage return *)       | "t" (* horizontal tab *)
+    | "u" , 4 * ? hexadeximal digit ?
+    )
+  } , '"' ;
 singleline_raw_string    = "'"  , ? Any Unicode character sequence except ' and newline ?  , "'";
-multiline_raw_string     = "'''", newline, ? Any Unicode character sequence except ''' and newline ?, "'''";
-multiline_escaped_string = '"""', newline, ? Character sequence allowed in a JSON string, including newline ?, newline, '"""';
+multiline_raw_string     = "'''", newline, ? Any Unicode character sequence except ''' and newline ?, newline, "'''";
+multiline_escaped_string = '"""', newline, ? same as the inner part of singleline_escaped_string ?, newline, '"""';
 ```
 
 Example:
 
 ```python
+# Escaped string
+.iam = "Why?\nAsked the prisoner."
+
 # Raw string: what you see is what you get
 .winpath  = 'C:\Users\nodejs\templates'
 .winpath2 = '\\ServerX\admin$\system32\'

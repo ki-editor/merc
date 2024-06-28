@@ -8,23 +8,30 @@ comment                =  @{ "#" ~ (!NEWLINE ~ ANY)* }
 comments               =  { comment* }
 entry                  =  { comments ~ accesses ~ "=" ~ value }
 accesses               =  { (access)+ }
-access                 =  _{ (object_access | map_access | array_access_new | array_access_last | tuple_access_new | tuple_access_last ) }
-array_access_new       =  { "[" ~ "i" ~ "]" }
-array_access_last      =  { "[" ~ "]" }
-tuple_access_new       =  { "(" ~ "i" ~ ")" }
-tuple_access_last      =  { "(" ~ ")" }
+access                 =  _{ (object_access | map_access | array_access_implicit | array_access_explicit) }
+array_access_implicit  =  { "[" ~ "+" ~ "]" }
+array_access_explicit  =  { "[" ~ identifier ~ "]" }
 object_access          =  { "." ~ identifier }
 map_access             =  { "{" ~ identifier ~ "}" }
-value                  =  _{ null | boolean | number | multiline_string | string | enum }
-multiline_string       = _{ "\"\"\"" ~ multiline_string_inner ~ "\"\"\"" }
-multiline_string_inner = { ((!"\"\"\"") ~ ANY)* }
+value                  = _{ null | boolean | number | string | enum }
 boolean                =  { "true" | "false" }
 null                   =  { "null" }
 enum                   =  { "#" ~ identifier }
-string                 = ${ "\"" ~ string_inner ~ "\"" }
-string_inner           = @{ char* }
-char                   = {
+
+string                        = { multiline_able_raw_string | singleline_raw_string | multiline_able_escaped_string | singleline_escaped_string }
+singleline_raw_string         = @{ "'" ~ (!("'" | NEWLINE) ~ ANY)* ~ "'" }
+multiline_able_raw_string     = @{ "'''" ~ ((!"'''") ~ ANY)* ~ "'''" }
+singleline_escaped_string     = ${ "\"" ~ singleline_escaped_string_inner ~ "\"" }
+multiline_able_escaped_string = ${ "\"\"\"" ~ multiline_able_escaped_string_inner ~ "\"\"\"" }
+singleline_escaped_string_inner  = @{ singleline_escaped_string_inner_char* }
+singleline_escaped_string_inner_char  = {
     !("\"" | "\\") ~ ANY
+    | "\\" ~ ("\"" | "\\" | "/" | "b" | "f" | "n" | "r" | "t")
+    | "\\" ~ ("u" ~ ASCII_HEX_DIGIT{4})
+}
+multiline_able_escaped_string_inner  = @{ multiline_able_escaped_string_inner_char* }
+multiline_able_escaped_string_inner_char  = {
+    !("\"\"\"" | "\\") ~ ANY
     | "\\" ~ ("\"" | "\\" | "/" | "b" | "f" | "n" | "r" | "t")
     | "\\" ~ ("u" ~ ASCII_HEX_DIGIT{4})
 }

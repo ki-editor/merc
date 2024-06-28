@@ -3,39 +3,84 @@ use crate::{format_merc, json_to_merc_string, merc_to_json, merc_to_json_string,
 #[test]
 fn merc_to_json_1() {
     let input = r#"
+
 # Map
 .materials{metal}.reflectivity = 1.0
 .materials{metal}.metallic = true
 .materials{plastic}.reflectivity = 0.5
-.materials{plastic}.conductivity = null
 .materials{"Infinity stones"}."soul affinity" = "fire"
 
-# Array of objects
-.entities[i].name = "hero"
-.entities[ ].material = "metal"
 
-.entities[i].name = "monster"
-.entities[ ].material = "plastic"
+# Array of objects (using explicit keys)
+# These user-defined keys are solely to construct the array
+# They are not consumable by application code
+.excludes[+] = "node_modules/"
+.excludes[+] = "dist/"
+.excludes[+] = "target/" 
 
-# Multiline string
-.description = """
-These are common materials.
-They are found on Earth.
+# Map
+# Map and object are identical implementation-wise
+# But map keys signify the reader that they are user-defined
+# instead of schema-defined
+.dependencies{"@types/react-markdown"} = "~0.2.3"
+.dependencies{graphql} = "1.2.3"
+.dependencies{react}.name = "^0.1.0"
+
+# Singleline Escaped String
+.poem = "Lorem\nIpsum"
+
+# Multiline-able Escaped string
+.escaped-one-line = """"Look at me" I can contain single quote!"""
+.escaped-multiline = """
+I must start and end with a newline.
+Otherwise it would be an error.
+The first and last newline will be omitted in the constructed string.
 """
+
+# Singleline Raw String
+.path = '\n is not escaped'
+
+# Multiline raw string
+.description = '''
+
+'Hello there!'
+These are common materials.
+They are stored in C:\SolarSystem:\Earth
+
+'''
 
 "#
     .trim();
     let expected_json = serde_json::json!({
-      "materials": {
-        "metal": { "reflectivity": 1.0, "metallic": true },
-        "plastic": { "reflectivity": 0.5, "conductivity": null },
-        "Infinity stones": { "soul affinity": "fire" }
+      "dependencies": {
+        "@types/react-markdown": "~0.2.3",
+        "graphql": "1.2.3",
+        "react": {
+          "name": "^0.1.0"
+        }
       },
-      "entities": [
-        { "name": "hero", "material": "metal" },
-        { "name": "monster", "material": "plastic" }
+      "description": "\n'Hello there!'\nThese are common materials.\nThey are stored in C:\\SolarSystem:\\Earth\n",
+      "escaped-multiline": "I must start and end with a newline.\nOtherwise it would be an error.\nThe first and last newline will be omitted in the constructed string.",
+      "escaped-one-line": "\"Look at me\" I can contain single quote!",
+      "excludes": [
+        "node_modules/",
+        "dist/",
+        "target/"
       ],
-      "description": "These are common materials.\nThey are found on Earth."
+      "materials": {
+        "Infinity stones": {
+          "soul affinity": "fire"
+        },
+        "metal": {
+          "metallic": true,
+          "reflectivity": 1.0
+        },
+        "plastic": {
+          "reflectivity": 0.5
+        }
+      },
+      "path": "\\n is not escaped",
+      "poem": "Lorem\nIpsum"
     });
     let actual: serde_json::Value =
         serde_json::from_str(&merc_to_json_string(input).unwrap()).unwrap();
@@ -49,14 +94,17 @@ fn json_to_merc_1() {
 These are common materials.
 They are found on Earth.
 """
-.entities[i].material = "metal"
-.entities[ ].name = "hero"
-.entities[i].material = "plastic"
-.entities[ ].name = "monster"
+.entities[0].material = "metal"
+.entities[0].name = "hero"
+.entities[1].material = "plastic"
+.entities[1].name = "monster"
 .materials.metal.metallic = true
 .materials.metal.reflectivity = 1.0
 .materials.plastic.conductivity = null
 .materials.plastic.reflectivity = 0.5
+.scalarArray[+] = 1
+.scalarArray[+] = 2
+.scalarArray[+] = 3
 "#
     .trim();
     let input = r#"{
@@ -68,6 +116,7 @@ They are found on Earth.
         { "name": "hero", "material": "metal" },
         { "name": "monster", "material": "plastic" }
       ],
+      "scalarArray": [1,2,3],
       "description": "These are common materials.\nThey are found on Earth."
     }"#;
     pretty_assertions::assert_eq!(json_to_merc_string(input).unwrap(), expected_merc)
@@ -96,11 +145,11 @@ fn top_level_map_1() {
 #[test]
 fn top_level_array_1() {
     let input = r#"
-[i][i][i] = 1
-[ ][ ][i] = 2
-[ ][i][i] = 3
-[ ][ ][i] = 4
-[i][i][i] = 5
+[0][0][0] = 1
+[0][0][1] = 2
+[0][1][2] = 3
+[0][1][3] = 4
+[1][2][4] = 5
 "#
     .trim();
     let expected_json = serde_json::json!([[[1, 2], [3, 4]], [[5]]]);
@@ -108,16 +157,16 @@ fn top_level_array_1() {
 }
 
 #[test]
-fn top_level_tuple_1() {
+fn array_order_1() {
     let input = r#"
-(i)(i)(i) = 1
-( )( )(i) = 2
-( )(i)(i) = 3
-( )( )(i) = 4
-(i)(i)(i) = 5
+[b].name = 1
+[a].name = 2
+
+[a].age = 3
+[b].age = 4
 "#
     .trim();
-    let expected_json = serde_json::json!([[[1, 2], [3, 4]], [[5]]]);
+    let expected_json = serde_json::json!([{"name":1,"age":4},{"name":2,"age":3}]);
     pretty_assertions::assert_eq!(merc_to_json(input).unwrap(), expected_json)
 }
 
@@ -137,12 +186,15 @@ fn parse_error_1() {
 .x.y 1
 "#
     .trim();
-    pretty_assertions::assert_eq!(merc_to_json_string(input).err().unwrap(), " --> 1:6
+    pretty_assertions::assert_eq!(
+        merc_to_json_string(input).err().unwrap(),
+        " --> 1:6
   |
 1 | .x.y 1
   |      ^---
   |
-  = expected array_access_new, array_access_last, tuple_access_new, tuple_access_last, object_access, or map_access")
+  = expected array_access_implicit, array_access_explicit, object_access, or map_access"
+    )
 }
 
 #[test]
@@ -188,19 +240,41 @@ error: Type Mismatch
 }
 
 #[test]
-fn error_last_array_element_not_found_1() {
+fn error_multiline_string_not_starting_with_newline() {
     let input = r#"
-.x[ ] = 2
-"#
-    .trim();
+[+] = '''hello
+'''"#
+        .trim();
+    pretty_assertions::assert_eq!(
+        merc_to_json_string(input).err().unwrap(),
+        " 
+error: Incorrect multi-line string format
+  |
+1 |   [+] = '''hello
+  |  _______^
+2 | | '''
+  | |___^ The content of a multiline string should start with a newline
+  |
+"
+        .trim()
+    )
+}
+
+#[test]
+fn error_multiline_string_not_ending_with_newline() {
+    let input = r#"
+[+] = '''
+hello'''"#
+        .trim();
     pretty_assertions::assert_eq!(
         merc_to_json_string(input).err().unwrap(),
         "
-error: Last Array Element Not Found
+error: Incorrect multi-line string format
   |
-1 | .x[ ] = 2
-  |   ^^^ Last array element not found.
-  |   --- help: Change `[ ]` to `[i]`
+1 |   [+] = '''
+  |  _______^
+2 | | hello'''
+  | |________^ The content of a multiline string should end with a newline
   |
 "
         .trim()
@@ -220,11 +294,11 @@ fn format_merc_1() {
 .materials{"Infinity stones"}."soul affinity" = "fire"
 
 # Array of objects
-.entities[i].name = "hero"
-.entities[ ].material = "metal"
+.entities[hero].name = "hero"
+.entities[hero].material = "metal"
 
-.entities[i].material = "plastic"
-.entities[ ].name = "monster"
+.entities[monster].material = "plastic"
+.entities[monster].name = "monster"
 
 # Multiline string
 .description = """
@@ -240,12 +314,12 @@ They are found on Earth.
 These ሴ are common materials.
 They are found on Earth.
 """
-.entities[i].material = "metal"
+.entities[hero].material = "metal"
 
 # Array of objects
-.entities[ ].name = "hero"
-.entities[i].material = "plastic"
-.entities[ ].name = "monster"
+.entities[hero].name = "hero"
+.entities[monster].material = "plastic"
+.entities[monster].name = "monster"
 .materials{"Infinity stones"}."soul affinity" = "fire"
 .materials{metal}.metallic = true
 

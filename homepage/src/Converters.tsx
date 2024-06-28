@@ -34,36 +34,52 @@ export function Converters() {
   }, []);
   React.useEffect(() => {
     updateMerc(
-      `
-# Object
-.package.name = "merc"
+      String.raw`
+# Map
+.materials{metal}.reflectivity = 1.0
+.materials{metal}.metallic = true
+.materials{plastic}.reflectivity = 0.5
+.materials{"Infinity stones"}."soul affinity" = "fire"
 
-# Multiline string
-.package.description = """
-The Mercileslly Redundant Config language.
-It is very redundant.
-"""
-
-# Array of scalars (using implicit keys \`+\`)
-.excludes[+] = "node_modules/"
-.excludes[+] = "dist/"
-.excludes[+] = "target/"
 
 # Array of objects (using explicit keys)
 # These user-defined keys are solely to construct the array
 # They are not consumable by application code
-.entities[hero].material = "metal"
-.entities[hero].name = "hero"
-.entities[monster].material = "plastic"
-.entities[monster].name = "monster"
+.excludes[+] = "node_modules/"
+.excludes[+] = "dist/"
+.excludes[+] = "target/" 
 
 # Map
 # Map and object are identical implementation-wise
-# But map keys signify the reader that they are user-defined
+# But map keys signify to the reader that they are user-defined
 # instead of schema-defined
-.dependencies{react}.name = "^0.1.0"
-.dependencies{graphql} = "1.2.3"
 .dependencies{"@types/react-markdown"} = "~0.2.3"
+.dependencies{graphql} = "1.2.3"
+.dependencies{react}.name = "^0.1.0"
+
+# Singleline Escaped String
+.poem = "Lorem\nIpsum"
+
+# Multiline-able Escaped string
+.escaped-one-line = """"Look at me" I can contain single quote!"""
+.escaped-multiline = """
+I must start and end with a newline.
+Otherwise it would be an error.
+The first and last newline will be omitted in the constructed string.
+"""
+
+# Singleline Raw String
+.path = '\n is not escaped'
+
+# Multiline raw string
+.description = '''
+
+'Hello there!'
+These are common materials.
+They are stored in C:\SolarSystem:\Earth
+
+'''
+
 `.trim()
     );
   }, [updateMerc]);
