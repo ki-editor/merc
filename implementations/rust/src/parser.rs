@@ -1,10 +1,8 @@
+use crate::data::Identifier;
 use itertools::Itertools;
 use nonempty::NonEmpty;
 use pest::{error::Error, iterators::Pair, Parser};
 use pest_derive::Parser;
-use rust_decimal::Decimal;
-
-use crate::data::Identifier;
 
 #[derive(Parser)]
 #[grammar = "merc.pest"]
@@ -97,7 +95,9 @@ fn parse_value(pair: Pair<Rule>) -> EntryValue {
     let kind = match pair.as_rule() {
         Rule::string => ValueKind::String(parse_string(pair)),
 
-        Rule::number => ValueKind::Decimal(str::parse::<Decimal>(pair.as_str()).unwrap()),
+        Rule::number => {
+            ValueKind::Decimal(str::parse::<serde_json::Number>(pair.as_str()).unwrap())
+        }
         Rule::integer => ValueKind::Integer(str::parse::<isize>(pair.as_str()).unwrap()),
         Rule::boolean => ValueKind::Boolean(str::parse::<bool>(pair.as_str()).unwrap()),
         Rule::null => ValueKind::Null,
@@ -110,7 +110,7 @@ fn parse_value(pair: Pair<Rule>) -> EntryValue {
 pub(crate) enum ValueKind {
     String(StringKind),
     Integer(isize),
-    Decimal(Decimal),
+    Decimal(serde_json::Number),
     Boolean(bool),
     Null,
 }

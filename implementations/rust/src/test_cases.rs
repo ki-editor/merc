@@ -3,6 +3,10 @@ use crate::{format_merc, json_to_merc_string, merc_to_json, merc_to_json_string,
 #[test]
 fn merc_to_json_1() {
     let input = r#"
+    
+# Numbers (identical to JSON numbers)
+.pi = 3.141592653
+.sextillion = -6.02e+23
 
 # Map
 .materials{metal}.reflectivity = 1.0
@@ -52,6 +56,8 @@ They are stored in C:\SolarSystem:\Earth
 "#
     .trim();
     let expected_json = serde_json::json!({
+      "pi": 3.141592653,
+      "sextillion": -6.02e23,
       "dependencies": {
         "@types/react-markdown": "~0.2.3",
         "graphql": "1.2.3",
@@ -345,5 +351,12 @@ They are found on Earth.
         )
         .unwrap(),
         format_merc(input).unwrap()
-    )
+    );
+
+    // Test idempotency:
+    // format(format(merc)) === format(merc)
+    assert_eq!(
+        format_merc(&format_merc(input).unwrap()).unwrap(),
+        format_merc(input).unwrap()
+    );
 }

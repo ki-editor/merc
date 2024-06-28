@@ -1,9 +1,7 @@
+use crate::parser::{trim_by_count, Access, AccessKind, Parsed, Span, StringKind};
 use annotate_snippets::{Annotation, Level};
 use indexmap::IndexMap;
 use itertools::Itertools;
-use rust_decimal::Decimal;
-
-use crate::parser::{trim_by_count, Access, AccessKind, Parsed, Span, StringKind};
 
 #[derive(Clone, Debug)]
 pub(crate) struct Value {
@@ -27,7 +25,7 @@ enum ValueKind {
 enum ValueScalarKind {
     String(String),
     Integer(isize),
-    Decimal(Decimal),
+    Number(serde_json::Number),
     Null,
     Boolean(bool),
 }
@@ -49,7 +47,7 @@ impl ValueKind {
             ValueKind::Scalar { kind, .. } => match kind {
                 ValueScalarKind::String(_) => Type::String,
                 ValueScalarKind::Integer(_) => Type::Integer,
-                ValueScalarKind::Decimal(_) => Type::Decimal,
+                ValueScalarKind::Number(_) => Type::Decimal,
                 ValueScalarKind::Null => Type::Null,
                 ValueScalarKind::Boolean(_) => Type::Boolean,
             },
@@ -67,7 +65,7 @@ impl ValueKind {
             ValueKind::Scalar { kind, .. } => match kind {
                 ValueScalarKind::String(string) => serde_json::Value::String(string),
                 ValueScalarKind::Integer(integer) => serde_json::Value::Number(integer.into()),
-                ValueScalarKind::Decimal(decimal) => str::parse(&decimal.to_string())
+                ValueScalarKind::Number(decimal) => str::parse(&decimal.to_string())
                     .map(serde_json::Value::Number)
                     .unwrap_or_else(|_| serde_json::Value::String(decimal.to_string())),
                 ValueScalarKind::Null => serde_json::Value::Null,
@@ -117,7 +115,9 @@ impl ValueKind {
                         format!("{parent_path} = {}", s)
                     }
                     ValueScalarKind::Integer(i) => format!("{parent_path} = {:?}", i),
-                    ValueScalarKind::Decimal(d) => format!("{parent_path} = {:?}", d),
+                    ValueScalarKind::Number(d) => {
+                        format!("{parent_path} = {}", serde_json::to_string(d).unwrap())
+                    }
                     ValueScalarKind::Null => {
                         format!("{parent_path} = null")
                     }
@@ -334,9 +334,7 @@ impl Value {
                 inferred_at: Span::default(),
                 kind: ValueKind::Scalar {
                     comment: None,
-                    kind: ValueScalarKind::Decimal(
-                        Decimal::from_str_exact(&number.to_string()).unwrap(),
-                    ),
+                    kind: ValueScalarKind::Number(number),
                 },
             },
             serde_json::Value::String(string) => Value {
@@ -734,7 +732,7 @@ fn evaluate_value(
             })
         }
         crate::parser::ValueKind::Integer(integer) => ValueScalarKind::Integer(integer),
-        crate::parser::ValueKind::Decimal(decimal) => ValueScalarKind::Decimal(decimal),
+        crate::parser::ValueKind::Decimal(decimal) => ValueScalarKind::Number(decimal),
         crate::parser::ValueKind::Boolean(boolean) => ValueScalarKind::Boolean(boolean),
         crate::parser::ValueKind::Null => ValueScalarKind::Null,
     };
