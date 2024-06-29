@@ -12,6 +12,7 @@
   "dependencies": {
     "@types/ramda": "^0.30.0",
     "@types/react-syntax-highlighter": "^15.5.13",
+    "@uidotdev/usehooks": "^2.4.1",
     "@uiw/react-textarea-code-editor": "^3.0.2",
     "merc": "link:../implementations/rust/pkg",
     "ramda": "^0.30.1",

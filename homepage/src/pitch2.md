@@ -179,6 +179,7 @@ properties that are consistent with the schema's definitions.
 
 | Feature/Format           | MERC | JSON |             YAML              |           TOML            |
 | ------------------------ | :--: | :--: | :---------------------------: | :-----------------------: |
+| Compact                  |  ❌  |  ✅  |              ✅               |            ❌             |
 | Supports Comments        |  ✅  |  ❌  |              ✅               |            ✅             |
 | Single Representation    |  ✅  |  ✅  | ❌ (Due to Anchors & Aliases) | ❌ (Due to Inline tables) |
 | Whitespace Insensitivity |  ✅  |  ✅  |              ❌               |            ✅             |
@@ -186,17 +187,15 @@ properties that are consistent with the schema's definitions.
 | Map-Object Distinction   |  ✅  |  ❌  |              ❌               |            ❌             |
 | Top-level Array          |  ✅  |  ✅  |              ✅               |            ❌             |
 
----
+Certainly! Here's a more concise version of the MERC specification:
 
-# Specification
+# MERC Specification
 
-The specification of MERC is segregated into 3 parts:
+MERC is divided into three parts:
 
-1. Syntax
-2. Semantics
-3. Formatter
-
-This segregation is to ease implementation, the syntax specification corresponds to the parser implementation, semantics the evaluator, and formatter the formatter.
+1. **Syntax:** Defines valid MERC expressions for parsing.
+2. **Semantics:** Covers evaluation rules.
+3. **Formatter:** Provides guidelines for consistent code formatting.
 
 # Specification (Syntax)
 
@@ -587,13 +586,11 @@ In the following example:
 ... the element indexed by `z` will come before `y` in the constructed array, because it's first occurence is `.[z].x = 3`,
 which comes before the first occurence of the element indexed by `y`, which is `.[y].x =4`.
 
-## 6. Implicit array accessor
+### 6. Implicit Array Accessor
 
-The implicit array accessor `[+]` is used when the user does not want to explicitly define the array keys.
-Every occurence of `+` should be substituted with a global unique value, which can be easily achieved by having a global unsigned integer counter.
+The implicit array accessor `[+]` is used when the user doesn't want to explicitly define array keys. Each occurrence of `+` should be substituted with a globally unique value. Achieving this is straightforward by maintaining a global unsigned integer counter.
 
-This also implies that when implicit array accessor is used, no objects/maps with more than one key can be constructed,
-for example, the following means two objects.
+When using the implicit array accessor, it's important to note that no objects or maps with more than one key can be constructed. For example:
 
 ```python
 [+].x = "hello"
@@ -606,19 +603,17 @@ The above translates into the following JSON:
 [{ "x": "hello" }, { "y": "hey" }]
 ```
 
-## 7. Explicit array keys
+### 7. Explicit Array Keys
 
-Explicit array keys should not be included in the constructed value, they are solely used as labels to ease configuration navigation.
+Explicit array keys serve as labels to facilitate configuration navigation but should not be included in the constructed value. They are not meant to be consumed by the application code.
 
-In other words, the array keys defined in MERC cannot be consumed by the application code.
+### 8. Object and Map
 
-## 8. Object and Map
+In MERC, objects and maps are identical under the hood. You can use either interchangeably based on your preference and use case.
 
-Object and Map are identical under the hood.
+### 9. Case Sensitivity
 
-## 9. Case-sensitivity
-
-MERC is case-sensitive, for example, `.x` and `.X` are different paths.
+MERC is case-sensitive. For instance, `.x` and `.X` represent different paths within the configuration.
 
 # Specification (Formatter)
 
@@ -812,7 +807,7 @@ Each entry should not contain any leading or trailing whitespaces.
 
 ## 10. **Implicit Array Accessor**
 
-Explicit array accessor should be replaced with implicit array accessor if it is the last descendant of a path.
+Replace explicit array accessors with implicit array accessors if they are the last descendants of a path.
 
 - Correct:
 

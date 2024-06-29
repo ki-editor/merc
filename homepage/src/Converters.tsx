@@ -1,4 +1,5 @@
 import CodeEditor from "@uiw/react-textarea-code-editor";
+import { useWindowSize } from "@uidotdev/usehooks";
 
 import {
   merc_to_json_string,
@@ -109,13 +110,15 @@ They are stored in C:\\SolarSystem:\\Earth
     setMerc(stringifyError(json_to_merc_string)(json));
     setYaml(stringifyError(json_to_yaml_string)(json));
   };
+  const windowSize = useWindowSize();
+  const largeScreen = (windowSize.width ?? 0) > 1000;
   return (
     <div style={{ display: "grid", padding: 32 }}>
       <div
         style={{
           display: "grid",
-          gridTemplateColumns: "1fr 1fr",
-          gridTemplateRows: "50vh 50vh",
+          gridTemplateColumns: largeScreen ? "1fr 1fr" : "1fr",
+          gridTemplateRows: largeScreen ? "repeat(2, 50vh)" : "repeat(4, 50vh)",
           gap: 16,
         }}
       >
@@ -184,10 +187,7 @@ const Editor = (props: {
               width: 200,
               justifySelf: "end",
             }}
-            onClick={() => {
-              console.log(JSON.stringify(format(props.value)));
-              props.onChange(format(props.value));
-            }}
+            onClick={() => props.onChange(format(props.value))}
           >
             Format
           </button>

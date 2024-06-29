@@ -19,18 +19,25 @@ export function RenderMarkdown(props: { markdown: string }) {
   return (
     <div
       style={{
-        minWidth: 848,
+        width: "min(888px, 80vw)",
         padding: "16px 32px",
         maxWidth: 1200,
         justifySelf: "center",
+        overflowX: "auto",
       }}
     >
       <Markdown
         remarkPlugins={[remarkGfm]}
         rehypePlugins={[rehypeSlug]}
         components={{
+          table(props) {
+            return (
+              <div style={{ overflowX: "auto" }}>
+                <table {...props}>{props.children}</table>
+              </div>
+            );
+          },
           code(props) {
-            console.log(props);
             const { children, className, node, ...rest } = omit(
               ["style", "ref"],
               props
