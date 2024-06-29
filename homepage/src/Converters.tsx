@@ -34,17 +34,24 @@ export function Converters() {
   }, []);
   React.useEffect(() => {
     updateMerc(
-      String.raw`
-# Map
-.materials{metal}.reflectivity = 1.0
-.materials{metal}.metallic = true
-.materials{plastic}.reflectivity = 0.5
-.materials{"Infinity stones"}."soul affinity" = "fire"
+      `
+# Numbers and booleans are identical to that of JSON
+.pic = 3.767612653
+.sextillion = -6.02e+23
+.is_merc = true
 
 
 # Array of objects (using explicit keys)
 # These user-defined keys are solely to construct the array
 # They are not consumable by application code
+.languages[javascript].extension = "js"
+.languages[javascript].server = "typescript-language-server"
+.languages[rust].extension = "rs"
+.languages[rust].server = "typescript-language-server"
+
+
+# Scalar array (using implicit keys +)
+# You can think of + as auto-incremented integer
 .excludes[+] = "node_modules/"
 .excludes[+] = "dist/"
 .excludes[+] = "target/" 
@@ -58,25 +65,24 @@ export function Converters() {
 .dependencies{react}.name = "^0.1.0"
 
 # Singleline Escaped String
-.poem = "Lorem\nIpsum"
+.poem = "Lorem\\tIpsum '''is the best'''"
 
 # Multiline-able Escaped string
-.escaped-one-line = """"Look at me" I can contain single quote!"""
 .escaped-multiline = """
 I must start and end with a newline.
-Otherwise it would be an error.
+Otherwise it would be an '''error'''.
 The first and last newline will be omitted in the constructed string.
 """
 
 # Singleline Raw String
-.path = '\n is not escaped'
+.path = '\\n is not escaped'
 
 # Multiline raw string
 .description = '''
 
 'Hello there!'
 These are common materials.
-They are stored in C:\SolarSystem:\Earth
+They are stored in C:\\SolarSystem:\\Earth
 
 '''
 
@@ -178,7 +184,10 @@ const Editor = (props: {
               width: 200,
               justifySelf: "end",
             }}
-            onClick={() => props.onChange(format(props.value))}
+            onClick={() => {
+              console.log(JSON.stringify(format(props.value)));
+              props.onChange(format(props.value));
+            }}
           >
             Format
           </button>

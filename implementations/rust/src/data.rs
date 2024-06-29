@@ -1,4 +1,4 @@
-use crate::parser::{trim_by_count, Access, AccessKind, Parsed, Span, StringKind};
+use crate::parser::{Access, AccessKind, MercString, Parsed, Span, StringKind};
 use annotate_snippets::{Annotation, Level};
 use indexmap::IndexMap;
 use itertools::Itertools;
@@ -23,7 +23,7 @@ enum ValueKind {
 
 #[derive(Clone, Debug)]
 enum ValueScalarKind {
-    String(String),
+    String(MercString),
     Integer(isize),
     Number(serde_json::Number),
     Null,
@@ -63,7 +63,7 @@ impl ValueKind {
         match self {
             ValueKind::MapLike(map_like) => map_like.into_json(),
             ValueKind::Scalar { kind, .. } => match kind {
-                ValueScalarKind::String(string) => serde_json::Value::String(string),
+                ValueScalarKind::String(string) => serde_json::Value::String(string.string_value()),
                 ValueScalarKind::Integer(integer) => serde_json::Value::Number(integer.into()),
                 ValueScalarKind::Number(decimal) => str::parse(&decimal.to_string())
                     .map(serde_json::Value::Number)
@@ -98,22 +98,7 @@ impl ValueKind {
                 .collect(),
             ValueKind::Scalar { comment, kind } => {
                 let entry = match kind {
-                    ValueScalarKind::String(s) => {
-                        fn serialize_string(s: &str) -> String {
-                            serde_json::to_string(&serde_json::Value::String(s.to_string()))
-                                .unwrap()
-                                .trim_matches('"')
-                                .to_string()
-                        }
-                        let s = if s.contains('\n') {
-                            let s = s.lines().map(serialize_string).join("\n");
-                            format!("\"\"\"\n{}\n\"\"\"", s)
-                        } else {
-                            let s = serialize_string(s);
-                            format!("\"{}\"", s)
-                        };
-                        format!("{parent_path} = {}", s)
-                    }
+                    ValueScalarKind::String(s) => format!("{parent_path} = {}", s.display()),
                     ValueScalarKind::Integer(i) => format!("{parent_path} = {:?}", i),
                     ValueScalarKind::Number(d) => {
                         format!("{parent_path} = {}", serde_json::to_string(d).unwrap())
@@ -202,7 +187,7 @@ impl Eq for MapKey {}
 
 #[derive(Debug, Clone)]
 pub(crate) enum Identifier {
-    Quoted(StringKind),
+    Quoted(MercString),
     Unquoted(String),
 }
 impl std::hash::Hash for Identifier {
@@ -219,25 +204,34 @@ impl Eq for Identifier {}
 impl Identifier {
     fn string_value(&self) -> String {
         match self {
-            Identifier::Quoted(string_kind) => string_kind.to_string(),
+            Identifier::Quoted(string_kind) => string_kind.string_value(),
             Identifier::Unquoted(string) => string.to_string(),
         }
     }
     fn display(&self) -> String {
-        let string = self.string_value();
-        if Self::needs_quote(&string) {
-            format!("\"{}\"", string)
-        } else {
-            string.to_string()
+        match self {
+            Identifier::Quoted(string) => {
+                let s = string.string_value();
+                if Self::needs_quote(&s) {
+                    string.display()
+                } else {
+                    s
+                }
+            }
+            Identifier::Unquoted(unquoted) => unquoted.to_string(),
         }
     }
 
-    fn from_str(key: &str) -> Identifier {
-        if Self::needs_quote(key) {
-            Identifier::Quoted(StringKind::SinglelineRaw(key.to_string()))
+    fn from_str(key: &str) -> Result<Identifier, EvaluateError> {
+        Ok(if Self::needs_quote(key) {
+            Identifier::Quoted(MercString::new(
+                StringKind::SinglelineRaw,
+                Span::default(),
+                key,
+            )?)
         } else {
             Identifier::Unquoted(key.to_string())
-        }
+        })
     }
 
     fn needs_quote(key: &str) -> bool {
@@ -314,8 +308,8 @@ impl Value {
             .trim()
             .to_string()
     }
-    pub(crate) fn from_json(json: serde_json::Value) -> Value {
-        match json {
+    pub(crate) fn from_json(json: serde_json::Value) -> Result<Value, EvaluateError> {
+        let result = match json {
             serde_json::Value::Null => Value {
                 inferred_at: Span::default(),
                 kind: ValueKind::Scalar {
@@ -341,7 +335,11 @@ impl Value {
                 inferred_at: Span::default(),
                 kind: ValueKind::Scalar {
                     comment: None,
-                    kind: ValueScalarKind::String(string.to_string()),
+                    kind: ValueScalarKind::String(MercString::new(
+                        StringKind::SinglelineRaw,
+                        Span::default(),
+                        &string,
+                    )?),
                 },
             },
             serde_json::Value::Array(array) => {
@@ -350,39 +348,43 @@ impl Value {
                     kind: ValueKind::MapLike(MapLike {
                         // We default to Array instead of Set, because Set is too restrictive
                         kind: MapKind::Array,
-                        map: IndexMap::from_iter(array.into_iter().enumerate().map(
-                            |(index, value)| {
-                                // If the `value` only needs one line of MERC to be represented
-                                // then use implicit keys, otherwise use explicit keys
-                                let key = match &value {
-                                    serde_json::Value::Null
-                                    | serde_json::Value::Bool(_)
-                                    | serde_json::Value::Number(_)
-                                    | serde_json::Value::String(_) => {
-                                        MapKey::Implicit(MapKeyImplicit::new())
-                                    }
-                                    serde_json::Value::Array(values) => {
-                                        if values.len() <= 1 {
+                        map: IndexMap::from_iter(
+                            array
+                                .into_iter()
+                                .enumerate()
+                                .map(|(index, value)| {
+                                    // If the `value` only needs one line of MERC to be represented
+                                    // then use implicit keys, otherwise use explicit keys
+                                    let key = match &value {
+                                        serde_json::Value::Null
+                                        | serde_json::Value::Bool(_)
+                                        | serde_json::Value::Number(_)
+                                        | serde_json::Value::String(_) => {
                                             MapKey::Implicit(MapKeyImplicit::new())
-                                        } else {
-                                            MapKey::Explicit(Identifier::Unquoted(
-                                                index.to_string(),
-                                            ))
                                         }
-                                    }
-                                    serde_json::Value::Object(map) => {
-                                        if map.len() <= 1 {
-                                            MapKey::Implicit(MapKeyImplicit::new())
-                                        } else {
-                                            MapKey::Explicit(Identifier::Unquoted(
-                                                index.to_string(),
-                                            ))
+                                        serde_json::Value::Array(values) => {
+                                            if values.len() <= 1 {
+                                                MapKey::Implicit(MapKeyImplicit::new())
+                                            } else {
+                                                MapKey::Explicit(Identifier::Unquoted(
+                                                    index.to_string(),
+                                                ))
+                                            }
                                         }
-                                    }
-                                };
-                                (key, Value::from_json(value))
-                            },
-                        )),
+                                        serde_json::Value::Object(map) => {
+                                            if map.len() <= 1 {
+                                                MapKey::Implicit(MapKeyImplicit::new())
+                                            } else {
+                                                MapKey::Explicit(Identifier::Unquoted(
+                                                    index.to_string(),
+                                                ))
+                                            }
+                                        }
+                                    };
+                                    Ok((key, Value::from_json(value)?))
+                                })
+                                .collect::<Result<Vec<_>, _>>()?,
+                        ),
                     }),
                 }
             }
@@ -392,16 +394,21 @@ impl Value {
                     kind: ValueKind::MapLike(MapLike {
                         // We default to Object instead of Map, because I think Object is more common than Map
                         kind: MapKind::Object,
-                        map: IndexMap::from_iter(map.into_iter().map(|(key, value)| {
-                            (
-                                MapKey::Explicit(Identifier::from_str(&key)),
-                                Value::from_json(value),
-                            )
-                        })),
+                        map: IndexMap::from_iter(
+                            map.into_iter()
+                                .map(|(key, value)| {
+                                    Ok((
+                                        MapKey::Explicit(Identifier::from_str(&key)?),
+                                        Value::from_json(value)?,
+                                    ))
+                                })
+                                .collect::<Result<Vec<_>, _>>()?,
+                        ),
                     }),
                 }
             }
-        }
+        };
+        Ok(result)
     }
     fn update(self, entry: crate::parser::Entry) -> Result<Value, EvaluateError> {
         self.set(
@@ -697,40 +704,8 @@ fn evaluate_value(
     comment: Option<String>,
     value: crate::parser::EntryValue,
 ) -> Result<Value, EvaluateError> {
-    let escape = |s: &str| -> Result<_, _> {
-        unescaper::unescape(&s).map_err(|error| EvaluateError::StringUnescapeError {
-            span: value.span.clone(),
-            error: error.to_string(),
-        })
-    };
-    let check_multiline_format = |s: &str| {
-        if s.contains('\n') {
-            if !s.starts_with('\n') {
-                Err(EvaluateError::MultilineStringNotStartingWithNewline {
-                    span: value.span.clone(),
-                })
-            } else if !s.ends_with('\n') {
-                Err(EvaluateError::MultilineStringNotEndingWithNewline {
-                    span: value.span.clone(),
-                })
-            } else {
-                Ok(trim_by_count(1, s))
-            }
-        } else {
-            Ok(s.to_string())
-        }
-    };
     let kind = match value.kind {
-        crate::parser::ValueKind::String(string_kind) => {
-            ValueScalarKind::String(match string_kind {
-                crate::parser::StringKind::SinglelineRaw(string) => string,
-                crate::parser::StringKind::SinglineEscaped(string) => escape(&string)?,
-                StringKind::MultilineAbleRaw(string) => check_multiline_format(&string)?,
-                StringKind::MultilineAbleEscaped(string) => {
-                    check_multiline_format(&escape(&string)?)?
-                }
-            })
-        }
+        crate::parser::ValueKind::String(string) => ValueScalarKind::String(string),
         crate::parser::ValueKind::Integer(integer) => ValueScalarKind::Integer(integer),
         crate::parser::ValueKind::Decimal(decimal) => ValueScalarKind::Number(decimal),
         crate::parser::ValueKind::Boolean(boolean) => ValueScalarKind::Boolean(boolean),

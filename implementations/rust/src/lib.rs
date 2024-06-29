@@ -22,7 +22,7 @@ pub fn merc_to_json_string(merc: &str) -> Result<String, String> {
 }
 
 fn merc_to_json(merc: &str) -> Result<serde_json::Value, Error> {
-    let parsed = parser::parse(merc).map_err(Error::ParseError)?;
+    let parsed = parser::parse(merc)?;
     let merc_value = evaluate(parsed).map_err(|error| Error::EvaluationError(Box::new(error)))?;
     Ok(merc_value.into_json())
 }
@@ -36,7 +36,7 @@ pub fn json_to_merc_string(json: &str) -> Result<String, String> {
 
 fn json_to_merc(json: &str) -> anyhow::Result<data::Value> {
     let parsed = serde_json::from_str(json)?;
-    Ok(data::Value::from_json(parsed))
+    data::Value::from_json(parsed).map_err(|err| anyhow::anyhow!("{}", err.display(json)))
 }
 
 #[wasm_bindgen]
@@ -128,7 +128,7 @@ mod test_lib {
 #[wasm_bindgen]
 pub fn format_merc(merc: &str) -> Result<String, String> {
     fn format_merc(merc: &str) -> Result<String, Error> {
-        let parsed = parser::parse(merc).map_err(Error::ParseError)?;
+        let parsed = parser::parse(merc)?;
         parsed.into_string()
     }
     format_merc(merc).map_err(|err| err.display(merc))

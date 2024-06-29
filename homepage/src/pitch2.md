@@ -755,7 +755,7 @@ Group of comments should only be separated from each other by exactly one newlin
 
 ## 6. **Key Formatting**
 
-Remove double quotes from keys when they are not necessary (i.e. the inner part of the key forms a valid identifier).
+Keys should be formatted as unquoted identifier whenever possible, otherwise it should be formatted as string.
 
 - Correct:
   ```python
@@ -786,38 +786,14 @@ Separate each entry by exactly one newline character, except for commented entri
   .anotherSetting = "anotherValue"
   ```
 
-## 8. **Raw String Formatting**
+## 8. **String Formatting**
 
-Format singleline raw string using 1 single quote instead of 3 single quotes if the content does not contain single quotes.
+Rules (topmost rules have the highest priority):
 
-Example:
-
-- Correct:
-  ```python
-  .greeting = 'Hello world!'
-  ```
-- Incorrect:
-  ```python
-  .greeting = '''Hello world!'''
-  ```
-
-## 9. **Multiline String Formatting**
-
-Format singeline escaped string as multiline escaped string if the content contains newline character.
-
-Example:
-
-- Correct:
-  ```python
-  .greeting = """
-  Hello
-  World
-  """
-  ```
-- Incorrect:
-  ```python
-  .greeting = "Hello\nWorld"
-  ```
+1. Format any kind of strings as a singleline raw string if the content does not contain a newline and also does not contain a single quote.
+2. Format any kind of strings as a multiline-able raw string if the content does not contain three consecutive single quotes.
+3. Format any kind of strings as a multiline-able escaped string if the content contains newlines.
+4. Format any kind of strings as a singleline escaped string if none of the conditions above are met.
 
 ## 9. **Entry formatting**
 
@@ -836,7 +812,7 @@ Each entry should not contain any leading or trailing whitespaces.
 
 ## 10. **Implicit Array Accessor**
 
-Explicit array accessor should be replaced with implicit array accessor if it is the last descendant of a path, and the path value is scalar.
+Explicit array accessor should be replaced with implicit array accessor if it is the last descendant of a path.
 
 - Correct:
 

@@ -5,7 +5,7 @@ fn merc_to_json_1() {
     let input = r#"
     
 # Numbers (identical to JSON numbers)
-.pi = 3.141592653
+.pic = 3.767612653
 .sextillion = -6.02e+23
 
 # Map
@@ -56,7 +56,7 @@ They are stored in C:\SolarSystem:\Earth
 "#
     .trim();
     let expected_json = serde_json::json!({
-      "pi": 3.141592653,
+      "pic": 3.767612653,
       "sextillion": -6.02e23,
       "dependencies": {
         "@types/react-markdown": "~0.2.3",
@@ -96,14 +96,14 @@ They are stored in C:\SolarSystem:\Earth
 #[test]
 fn json_to_merc_1() {
     let expected_merc = r#"
-.description = """
+.description = '''
 These are common materials.
 They are found on Earth.
-"""
-.entities[0].material = "metal"
-.entities[0].name = "hero"
-.entities[1].material = "plastic"
-.entities[1].name = "monster"
+'''
+.entities[0].material = 'metal'
+.entities[0].name = 'hero'
+.entities[1].material = 'plastic'
+.entities[1].name = 'monster'
 .materials.metal.metallic = true
 .materials.metal.reflectivity = 1.0
 .materials.plastic.conductivity = null
@@ -297,14 +297,17 @@ fn format_merc_1() {
 .materials{"plastic"}.reflectivity = 0.5
 .materials{metal}.metallic = true
 .materials{plastic}.conductivity = null
-.materials{"Infinity stones"}."soul affinity" = "fire"
+.materials{"Infinity stones"}."soul affinity" = 'fire'
 
 # Array of objects
-.entities[hero].name = "hero"
-.entities[hero].material = "metal"
+.entities[hero].name = 'hero'
+.entities[hero].material = 'metal'
 
-.entities[monster].material = "plastic"
-.entities[monster].name = "monster"
+.entities[monster].material = 'plastic'
+.entities[monster].name = 'monster'
+
+# Raw string
+.path = 'C:\user\drive'
 
 # Multiline string
 .description = """
@@ -312,21 +315,27 @@ These \u1234 are common materials.
 They are found on Earth.
 """
 
+.more = '''
+
+They are stored in C:\SolarSystem:\Earth
+
+'''
+
 "#
     .trim();
     let expected = r#"
 # Multiline string
-.description = """
+.description = '''
 These ሴ are common materials.
 They are found on Earth.
-"""
-.entities[hero].material = "metal"
+'''
+.entities[hero].material = 'metal'
 
 # Array of objects
-.entities[hero].name = "hero"
-.entities[monster].material = "plastic"
-.entities[monster].name = "monster"
-.materials{"Infinity stones"}."soul affinity" = "fire"
+.entities[hero].name = 'hero'
+.entities[monster].material = 'plastic'
+.entities[monster].name = 'monster'
+.materials{'Infinity stones'}.'soul affinity' = 'fire'
 .materials{metal}.metallic = true
 
 # Map
@@ -334,6 +343,15 @@ They are found on Earth.
 .materials{metal}.reflectivity = 1.0
 .materials{plastic}.conductivity = null
 .materials{plastic}.reflectivity = 0.5
+.more = '''
+
+They are stored in C:\SolarSystem:\Earth
+
+'''
+
+# Raw string
+.path = 'C:\user\drive'
+
 "#
     .trim();
     let actual = format_merc(input).unwrap();
@@ -359,4 +377,92 @@ They are found on Earth.
         format_merc(&format_merc(input).unwrap()).unwrap(),
         format_merc(input).unwrap()
     );
+}
+
+#[test]
+fn format_string_as_singleline_raw_string_if_possible() {
+    let input = r#"
+."a hello world" = "hello world"
+."""b hello world""" = """hello world"""
+.'''c hello world''' = '''hello world'''
+"#
+    .trim();
+    let expected = r#"
+.'a hello world' = 'hello world'
+.'b hello world' = 'hello world'
+.'c hello world' = 'hello world'
+"#
+    .trim();
+    let actual = format_merc(input).unwrap();
+
+    pretty_assertions::assert_eq!(actual, expected);
+}
+
+#[test]
+fn format_string_as_multiline_raw_string_if_possible() {
+    let input = r#"
+."""
+z
+hello
+world
+""" = """
+hello
+world
+"""
+"#
+    .trim();
+    let expected = r#"
+.'''
+z
+hello
+world
+''' = '''
+hello
+world
+'''
+"#
+    .trim();
+    let actual = format_merc(input).unwrap();
+
+    pretty_assertions::assert_eq!(actual, expected);
+}
+
+#[test]
+fn format_string_as_singleline_escaped_string_if_possible() {
+    let input = r#"
+."""
+Somebody says: '''To be or not to be?'''
+""" = """
+Somebody says: '''To be or not to be?'''
+"""
+"#
+    .trim();
+    let expected = r#"
+."Somebody says: '''To be or not to be?'''" = "Somebody says: '''To be or not to be?'''"
+"#
+    .trim();
+    let actual = format_merc(input).unwrap();
+
+    pretty_assertions::assert_eq!(actual, expected);
+}
+
+#[test]
+fn format_string_as_multiline_able_escaped_string_if_required() {
+    let input = r#"
+."Somebody says:\n'''To be or not to be?'''" = "Somebody says:\n'''To be or not to be?'''"
+"#
+    .trim();
+    let expected = r#"
+."""
+Somebody says:
+'''To be or not to be?'''
+""" = """
+Somebody says:
+'''To be or not to be?'''
+"""
+"#
+    .trim();
+    let actual = format_merc(input).unwrap();
+
+    pretty_assertions::assert_eq!(actual, expected);
 }
